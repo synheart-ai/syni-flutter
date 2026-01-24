@@ -1,11 +1,23 @@
 package com.synheart.syni
 
 import android.content.Context
+import com.syni.sdk.Syni
+import com.syni.sdk.core.EngineType
+import com.syni.sdk.core.GenerationOptions
+import com.syni.sdk.core.SyniConfig
+import com.syni.sdk.core.SyniError
+import com.syni.sdk.core.SyniInput
+import com.syni.sdk.core.SyniRequest
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -19,10 +31,7 @@ class SyniPlugin : FlutterPlugin, MethodCallHandler {
 
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
-
-    // The native Syni SDK instance (from syni-kotlin).
-    // This should be replaced with actual syni-kotlin import when integrated.
-    // private var syniSDK: SyniSDK? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var isInitialized = false
 
@@ -34,6 +43,7 @@ class SyniPlugin : FlutterPlugin, MethodCallHandler {
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+        scope.cancel()
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -57,17 +67,22 @@ class SyniPlugin : FlutterPlugin, MethodCallHandler {
         }
 
         try {
-            val config = JSONObject(configJson)
+            val configObj = JSONObject(configJson)
 
-            // TODO: Initialize syni-kotlin SDK with config
-            // syniSDK = SyniSDK(context, config)
+            // Build SyniConfig from Flutter config
+            val syniConfig = SyniConfig(
+                specVersion = configObj.optString("specVersion", "1.0.0"),
+                debug = configObj.optBoolean("debugLogging", false)
+            )
 
+            // Initialize syni-kotlin SDK
+            Syni.initialize(context, syniConfig)
             isInitialized = true
 
             // Return version info
             val response = JSONObject().apply {
-                put("nativeSdkVersion", "1.2.0") // TODO: Get from syni-kotlin
-                put("specVersion", "1.1.0")       // TODO: Get from syni-kotlin
+                put("nativeSdkVersion", Syni.version)
+                put("specVersion", syniConfig.specVersion)
             }
 
             result.success(response.toString())
@@ -88,56 +103,93 @@ class SyniPlugin : FlutterPlugin, MethodCallHandler {
             return
         }
 
-        try {
-            val request = JSONObject(requestJson)
+        scope.launch {
+            try {
+                val requestObj = JSONObject(requestJson)
 
-            // TODO: Delegate to syni-kotlin for actual inference
-            // syniSDK?.generate(request) { response, error ->
-            //     if (error != null) {
-            //         result.error(...)
-            //         return@generate
-            //     }
-            //     result.success(response)
-            // }
+                val personaId = requestObj.optString("personaId")
+                val inputText = requestObj.optString("input")
 
-            // Placeholder response for testing
-            val personaId = request.optString("personaId", "unknown")
+                if (personaId.isNullOrEmpty() || inputText.isNullOrEmpty()) {
+                    result.error("INVALID_REQUEST", "Missing required fields: personaId, input", null)
+                    return@launch
+                }
 
-            val suggestions = JSONArray().apply {
-                put(JSONObject().apply {
-                    put("text", "Hello!")
-                    put("confidence", 0.95)
-                })
-                put(JSONObject().apply {
-                    put("text", "Hi there!")
-                    put("confidence", 0.85)
-                })
-                put(JSONObject().apply {
-                    put("text", "Hey!")
-                    put("confidence", 0.75)
-                })
+                // Build context from request parameters
+                val contextMap = mutableMapOf<String, String>()
+                val params = requestObj.optJSONObject("parameters")
+                if (params != null) {
+                    params.keys().forEach { key ->
+                        val value = params.opt(key)
+                        if (value is String) {
+                            contextMap[key] = value
+                        }
+                    }
+                }
+
+                // Build generation options
+                val constraints = requestObj.optJSONObject("constraints")
+                val options = if (constraints != null) {
+                    GenerationOptions(
+                        localOnly = constraints.optBoolean("offlineOnly", false),
+                        cloudOnly = false
+                    )
+                } else {
+                    GenerationOptions.DEFAULT
+                }
+
+                // Create SyniInput
+                val input = SyniInput(
+                    text = inputText,
+                    context = contextMap
+                )
+
+                // Create SyniRequest
+                val syniRequest = SyniRequest(
+                    personaId = personaId,
+                    input = input,
+                    options = options
+                )
+
+                // Execute generation
+                val syniResult = Syni.generate(syniRequest)
+
+                when (syniResult) {
+                    is com.syni.sdk.core.SyniResult.Success -> {
+                        val response = syniResult.value
+
+                        // Convert outputJSON to JSONObject
+                        val outputJson = JSONObject(response.outputString())
+
+                        val meta = JSONObject().apply {
+                            put("schemaId", response.metadata.schemaId ?: response.metadata.personaId)
+                            put("personaId", response.metadata.personaId)
+                            put("engine", response.metadata.engine.name.lowercase())
+                            put("durationMs", response.metadata.latencyMs)
+                            put("isFallback", response.isFallback)
+                        }
+
+                        val responseObj = JSONObject().apply {
+                            put("outputJson", outputJson)
+                            put("meta", meta)
+                        }
+
+                        result.success(responseObj.toString())
+                    }
+                    is com.syni.sdk.core.SyniResult.Failure -> {
+                        val error = syniResult.error
+                        result.error(
+                            errorCode(error),
+                            error.message ?: "Generation failed",
+                            null
+                        )
+                    }
+                }
+            } catch (e: SyniError) {
+                result.error(errorCode(e), e.message ?: "Generation failed", null)
+            } catch (e: Exception) {
+                result.error("PLATFORM_ERROR", "Generation failed: ${e.message}", null)
             }
-
-            val outputJson = JSONObject().apply {
-                put("suggestions", suggestions)
-            }
-
-            val meta = JSONObject().apply {
-                put("schemaId", "keyboard.suggestions.v1")
-                put("personaId", personaId)
-                put("engine", "local")
-                put("durationMs", 50)
-                put("isFallback", false)
-            }
-
-            val response = JSONObject().apply {
-                put("outputJson", outputJson)
-                put("meta", meta)
-            }
-
-            result.success(response.toString())
-        } catch (e: Exception) {
-            result.error("PLATFORM_ERROR", "Failed to generate: ${e.message}", null)
         }
     }
 
@@ -148,9 +200,18 @@ class SyniPlugin : FlutterPlugin, MethodCallHandler {
         }
 
         try {
-            // TODO: Get models from syni-kotlin
-            val models = JSONArray()
-            result.success(models.toString())
+            val models = Syni.getDownloadedModels()
+
+            val modelsArray = JSONArray()
+            models.forEach { model ->
+                modelsArray.put(JSONObject().apply {
+                    put("id", model.id)
+                    put("name", model.name)
+                    put("sizeBytes", model.sizeBytes)
+                })
+            }
+
+            result.success(modelsArray.toString())
         } catch (e: Exception) {
             result.error("PLATFORM_ERROR", "Failed to get models: ${e.message}", null)
         }
@@ -162,8 +223,35 @@ class SyniPlugin : FlutterPlugin, MethodCallHandler {
             return
         }
 
-        // TODO: Delegate to syni-kotlin
-        result.success(null)
+        val argsJson = call.arguments as? String
+        if (argsJson == null) {
+            result.error("INVALID_REQUEST", "Invalid arguments", null)
+            return
+        }
+
+        scope.launch {
+            try {
+                val args = JSONObject(argsJson)
+                val modelId = args.optString("modelId")
+
+                if (modelId.isNullOrEmpty()) {
+                    result.error("INVALID_REQUEST", "Missing modelId", null)
+                    return@launch
+                }
+
+                // Download model - collect flow to completion
+                Syni.downloadModel(
+                    url = "", // URL would come from model registry
+                    modelId = modelId
+                ).collect { progress ->
+                    // Could emit progress events here if needed
+                }
+
+                result.success(null)
+            } catch (e: Exception) {
+                result.error("PLATFORM_ERROR", "Failed to download model: ${e.message}", null)
+            }
+        }
     }
 
     private fun handleDeleteModel(call: MethodCall, result: Result) {
@@ -172,7 +260,42 @@ class SyniPlugin : FlutterPlugin, MethodCallHandler {
             return
         }
 
-        // TODO: Delegate to syni-kotlin
-        result.success(null)
+        val argsJson = call.arguments as? String
+        if (argsJson == null) {
+            result.error("INVALID_REQUEST", "Invalid arguments", null)
+            return
+        }
+
+        scope.launch {
+            try {
+                val args = JSONObject(argsJson)
+                val modelId = args.optString("modelId")
+
+                if (modelId.isNullOrEmpty()) {
+                    result.error("INVALID_REQUEST", "Missing modelId", null)
+                    return@launch
+                }
+
+                Syni.deleteModel(modelId)
+                result.success(null)
+            } catch (e: Exception) {
+                result.error("PLATFORM_ERROR", "Failed to delete model: ${e.message}", null)
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private fun errorCode(error: SyniError): String {
+        return when (error) {
+            is SyniError.EngineUnavailable -> "ENGINE_UNAVAILABLE"
+            is SyniError.PersonaNotFound -> "INVALID_REQUEST"
+            is SyniError.SchemaNotFound -> "INVALID_REQUEST"
+            is SyniError.GrammarNotFound -> "INVALID_REQUEST"
+            is SyniError.ValidationFailed -> "SCHEMA_VIOLATION"
+            is SyniError.Timeout -> "TIMEOUT"
+            is SyniError.Cancelled -> "CANCELLED"
+            else -> "PLATFORM_ERROR"
+        }
     }
 }

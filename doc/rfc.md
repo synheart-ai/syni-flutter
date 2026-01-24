@@ -31,7 +31,7 @@ It exposes a stable Flutter-friendly interface and returns typed structured outp
 
 # **3. Non-Goals**
 
-- Running PortableLocalEngine inside Dart (no FFI llama.cpp in Flutter for v1)
+- Running LocalEngine inside Dart (no FFI llama.cpp in Flutter for v1)
 - Implementing persona routing or engine selection in Dart
 - Calling OpenAI directly from mobile apps
 - Supporting iOS keyboard extension use cases (native only)

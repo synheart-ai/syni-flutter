@@ -1,1 +1,6 @@
 rootProject.name = 'syni'
+
+// Include syni-kotlin SDK for development builds
+// For production, remove this and use Maven dependency instead
+include ':syni-sdk'
+project(':syni-sdk').projectDir = new File('../../syni-kotlin/syni-sdk')
