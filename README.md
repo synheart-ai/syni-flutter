@@ -1,6 +1,9 @@
 # syni
 
-Flutter (Dart) wrapper for Syni. This package provides a unified Flutter API that delegates execution to the native Syni SDKs via platform channels.
+Flutter (Dart) wrapper for Syni. This package provides two ways to use Syni:
+
+1. **Platform Channels** (default) - Delegates to native SDKs (syni-swift / syni-kotlin) via platform channels
+2. **FFI Runtime** (new) - Direct FFI wrapper for `syni-runtime` Rust core engine
 
 ## Usage
 
