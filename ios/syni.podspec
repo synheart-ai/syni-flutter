@@ -11,8 +11,17 @@ Flutter plugin that provides a unified Syni API by delegating to syni-swift on i
   s.source           = { :path => '.' }
   s.source_files     = 'Classes/**/*'
   s.dependency 'Flutter'
-  # TODO: Add syni-swift dependency when available
-  # s.dependency 'syni-swift', '~> 1.2.0'
-  s.platform         = :ios, '14.0'
-  s.swift_version    = '5.0'
+
+  # SyniSwift dependency - use local path for development
+  # For production, this would be a published pod:
+  # s.dependency 'SyniSwift', '~> 1.0.0'
+  s.dependency 'SyniSwift', :path => '../../syni-swift'
+
+  s.platform         = :ios, '16.0'
+  s.swift_version    = '5.9'
+
+  # SyniSwift requires the SyniRuntime XCFramework
+  s.xcconfig = {
+    'OTHER_LDFLAGS' => '-lc++'
+  }
 end

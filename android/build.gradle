@@ -26,7 +26,7 @@ apply plugin: 'kotlin-android'
 
 android {
     namespace 'com.synheart.syni'
-    compileSdk 34
+    compileSdk 35
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -42,12 +42,18 @@ android {
     }
 
     defaultConfig {
-        minSdk 24
+        minSdk 26
     }
 }
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    // TODO: Add syni-kotlin dependency when available
-    // implementation 'com.synheart:syni-kotlin:1.2.0'
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+
+    // syni-kotlin SDK dependency
+    // For development, use project reference:
+    implementation project(':syni-sdk')
+
+    // For production/published builds, use Maven dependency:
+    // implementation 'com.synheart:syni-sdk:1.0.0'
 }
