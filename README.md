@@ -57,9 +57,46 @@ final response = await Syni.generate(const SyniRequest(
 final suggestions = KeyboardSuggestionResponse.fromSyniResponse(response);
 ```
 
-## Platform notes
+## FFI Runtime Wrapper (Direct syni-runtime)
 
-This Flutter package communicates with native SDKs over a MethodChannel:
+For direct access to the Rust-based `syni-runtime` engine without platform channels:
+
+```dart
+import 'package:syni/src/runtime/runtime.dart';
+
+final runtime = SyniRuntime();
+runtime.initialize();
+
+// Load a local GGUF model or download one
+runtime.loadModel('/path/to/model.gguf');
+// Or: final path = await runtime.downloadModel('https://.../model.gguf');
+
+// Run inference
+final response = runtime.run(
+  SyniRuntimeRequest(instruction: 'Hello!'),
+  preset: SyniPreset.chat,
+);
+
+print(response.rawJson);
+runtime.dispose();
+```
+
+**Setup:**
+1. Build `syni-runtime`: `cd syni-runtime && cargo build --features llama --release`
+2. Make library accessible (see `lib/src/runtime/README.md` for details)
+3. See `example/runtime_example.dart` for a complete example
+
+**Benefits:**
+- Direct access to Rust core engine
+- No platform channel overhead
+- Works with local GGUF models
+- Model downloading built-in
+
+See `lib/src/runtime/README.md` for detailed setup instructions.
+
+## Platform Channels (Default)
+
+This Flutter package can also communicate with native SDKs over a MethodChannel:
 
 - Channel: `com.synheart.syni/sdk`
 - Methods: `initialize`, `generate`, `getModels`, `downloadModel`, `deleteModel`
@@ -69,3 +106,4 @@ Native SDK integration (syni-swift / syni-kotlin) is expected to be provided via
 ## Docs
 
 - Design RFC: `doc/rfc.md`
+- Runtime Wrapper: `lib/src/runtime/README.md`

@@ -15,7 +15,7 @@ class SyniRuntimeFFI {
 
     DynamicLibrary? library;
 
-    if (Platform.isMacOS || Platform.isIOS) {
+    if (Platform.isMacOS) {
       // Try to load from common locations
       final paths = [
         'libsyni_ffi.dylib',
@@ -28,6 +28,23 @@ class SyniRuntimeFFI {
           break;
         } catch (e) {
           // Try next path
+        }
+      }
+    } else if (Platform.isIOS) {
+      // iOS: Load from app bundle (Frameworks)
+      try {
+        library = DynamicLibrary.process();
+      } catch (e) {
+        // Fallback: try explicit path
+        try {
+          library = DynamicLibrary.open('Frameworks/libsyni_ffi.framework/libsyni_ffi');
+        } catch (e2) {
+          // Last resort: try just the library name
+          try {
+            library = DynamicLibrary.open('libsyni_ffi');
+          } catch (e3) {
+            // Will throw below
+          }
         }
       }
     } else if (Platform.isLinux) {
@@ -43,10 +60,17 @@ class SyniRuntimeFFI {
         // Try alternative
       }
     } else if (Platform.isAndroid) {
+      // Android: Load from jniLibs (packaged in APK)
+      // The library should be in android/app/src/main/jniLibs/<abi>/libsyni_ffi.so
       try {
         library = DynamicLibrary.open('libsyni_ffi.so');
       } catch (e) {
-        // Try alternative
+        // Try alternative naming
+        try {
+          library = DynamicLibrary.open('syni_ffi');
+        } catch (e2) {
+          // Will throw below
+        }
       }
     }
 
