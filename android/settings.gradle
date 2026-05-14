@@ -1,6 +1,6 @@
 rootProject.name = 'syni'
 
-// Include syni-kotlin SDK for development builds
-// For production, remove this and use Maven dependency instead
-include ':syni-sdk'
-project(':syni-sdk').projectDir = new File('../../syni-kotlin/syni-sdk')
+// No native SDK sub-projects. Inference runs in Dart via dart:ffi against
+// libsyni_ffi.so packaged from `android/src/main/jniLibs/<abi>/`. The
+// previous `include ':syni-sdk'` directive (pointing at ../../syni-kotlin)
+// was removed when this package moved to a Dart-FFI-first architecture.

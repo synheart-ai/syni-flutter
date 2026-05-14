@@ -1,103 +1,108 @@
 # Syni Runtime Wrapper (FFI)
 
-This module provides a Dart FFI wrapper for `syni-runtime`, allowing direct use of the Rust-based LLM inference engine from Dart/Flutter.
+Dart bindings for `syni-runtime`, the Rust-based LLM inference engine. The
+engine runs on a **dedicated worker isolate** so inference never blocks the
+caller (UI) thread.
 
-## Setup
+> **Internal package.** App developers should not depend on `package:syni`
+> directly. The consumer-facing API lives in `package:synheart_core` as
+> `Synheart.syni.*`, which gates installation, consent, and capability before
+> talking to this runtime. See [syni RFC-0001 §6](../../../doc/rfc.md) and
+> `synheart_feature.dart` in `synheart-core-flutter`.
 
-### 1. Build syni-runtime
+## Module layout
 
-First, build the `syni-runtime` library:
-
-```bash
-cd syni-runtime
-cargo build --features llama --release
+```
+lib/src/runtime/
+├── library_loader.dart     # DynamicLibrary resolution per platform
+├── ffi_bindings.dart       # SyniRuntimeFFI — static facade over libsyni_ffi
+├── isolate_worker.dart     # SyniRuntimeWorker — engine pointer owned on a worker isolate
+├── syni_runtime.dart       # SyniRuntime — high-level async API for app code
+├── runtime.dart            # Re-export barrel
+└── README.md               # this file
 ```
 
-This will create:
-- **macOS**: `target/release/libsyni_ffi.dylib`
-- **Linux**: `target/release/libsyni_ffi.so`
-- **Windows**: `target\release\syni_ffi.dll`
+## Build flow
 
-### 2. Copy library to accessible location
+The native artifact is built by `syni-runtime`'s Makefile:
 
-For development, copy the library to a location where Dart can find it:
-
-**macOS:**
 ```bash
-cp syni-runtime/target/release/libsyni_ffi.dylib /usr/local/lib/
-# Or use DYLD_LIBRARY_PATH
-export DYLD_LIBRARY_PATH=$PWD/syni-runtime/target/release:$DYLD_LIBRARY_PATH
+cd ../syni-runtime
+make prereqs              # one-time toolchain check
+make targets-install      # install missing rustup targets
+make macos                # host dev build (fast smoke test)
+make ios                  # iOS xcframework
+make android              # Android jniLibs
+make all                  # everything
 ```
 
-**Linux:**
-```bash
-cp syni-runtime/target/release/libsyni_ffi.so /usr/local/lib/
-# Or use LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=$PWD/syni-runtime/target/release:$LD_LIBRARY_PATH
+Output layout (`syni-runtime/build/`):
+
+```
+build/headers/syni_ffi.h
+build/macos/{libsyni_ffi.dylib,libsyni_ffi.a}
+build/ios/SyniRuntime.xcframework/
+build/android/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libsyni_ffi.so
 ```
 
-**For Flutter apps**, you'll need to bundle the library with your app (see platform-specific instructions below).
+These are vendored by `syni-flutter`'s podspec / gradle at integration time.
 
-## Usage
+## Quick start (development)
 
 ```dart
 import 'package:syni/src/runtime/runtime.dart';
 
-void main() async {
+Future<void> main() async {
   final runtime = SyniRuntime();
-  
-  // Initialize
-  runtime.initialize();
-  
-  // Load a model
-  runtime.loadModel('/path/to/model.gguf');
-  
-  // Or download a model
-  final modelPath = await runtime.downloadModel(
-    'https://huggingface.co/.../model.gguf'
-  );
-  runtime.loadModel(modelPath);
-  
-  // Run inference
-  final request = SyniRuntimeRequest(
-    instruction: 'Hello! How are you?',
-    hsi: {'coherence': 0.8},
-  );
-  
-  final response = runtime.run(
-    request,
+  await runtime.initialize();                    // spawns worker isolate
+  await runtime.loadModel('/path/to/model.gguf'); // happens on worker
+
+  final response = await runtime.run(
+    SyniRuntimeRequest(
+      instruction: 'Hello',
+      hsi: { /* HSI 1.3 payload or ad-hoc map */ },
+    ),
     preset: SyniPreset.chat,
     seed: 42,
   );
-  
+
   print(response.rawJson);
-  
-  // Cleanup
-  runtime.dispose();
+  await runtime.dispose();
 }
 ```
 
-## Example
+## Breaking change vs. v1.0
 
-See `example/runtime_example.dart` for a complete example using a local GGUF model.
+`SyniRuntime.run()` was synchronous in v1.0 and blocked the calling isolate
+for the duration of inference (which on chat preset is 2–5 seconds — long
+enough to freeze the UI thread).
 
-## Platform Integration
+In this version, the engine runs on a worker isolate spawned by
+`SyniRuntime.initialize()`, and **all entry points are asynchronous**:
 
-### Flutter iOS
+| v1.0 | This version |
+|---|---|
+| `runtime.initialize()` | `await runtime.initialize()` |
+| `runtime.getVersion()` | `await runtime.getVersion()` |
+| `runtime.loadModel(p)` | `await runtime.loadModel(p)` |
+| `runtime.run(req)` | `await runtime.run(req)` |
+| `runtime.dispose()` | `await runtime.dispose()` |
 
-1. Build `syni-runtime` for iOS (requires cross-compilation)
-2. Add the `.framework` or `.a` to your iOS project
-3. Update `ios/Podfile` if needed
+Note that v1.0 also did not compile (nested typedefs / enums are invalid
+Dart), so there are no production v1.0 deployments to migrate. This is
+effectively the first working release.
 
-### Flutter Android
+## What's intentionally not here
 
-1. Build `syni-runtime` for Android (arm64-v8a, x86_64)
-2. Place `.so` files in `android/app/src/main/jniLibs/<arch>/`
-3. Update `android/build.gradle` if needed
+The following capabilities exist in `libsyni_ffi`'s C ABI but are not yet
+exposed at the Dart layer. Follow-up PRs:
 
-## Notes
-
-- The FFI wrapper requires the native library to be built and accessible
-- Model files (GGUF) can be local or downloaded
-- All inference is handled by the Rust core via FFI
-- This is a lower-level API compared to the platform channel approach
+- **Streaming** (`syni_engine_run_stream_json`, `syni_inference_async`,
+  `syni_inference_cancel`) — wire via `NativeCallable.listener` (Dart 3.1+).
+- **Tokenization** (`syni_tokenize`, `syni_token_count`,
+  `syni_chat_template_get`, `syni_eos_token_get`, `syni_bos_token_get`).
+- **Telemetry & introspection** (`syni_engine_healthcheck`,
+  `syni_telemetry_json`, `syni_queue_pending_count`,
+  `syni_model_cache_count`, `syni_model_cache_clear`).
+- **ffigen migration** — bindings are currently hand-written; a follow-up
+  generates them from `../syni-runtime/ffi/c_api.h` for drift safety.

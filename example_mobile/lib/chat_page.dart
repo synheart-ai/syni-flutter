@@ -31,8 +31,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Future<void> _initModel() async {
     try {
-      _runtime.initialize();
-      _runtime.loadModel(widget.modelPath);
+      await _runtime.initialize();
+      await _runtime.loadModel(widget.modelPath);
       setState(() {
         _isReady = true;
         _isLoading = false;
@@ -68,7 +68,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         },
       );
 
-      final response = _runtime.run(
+      final response = await _runtime.run(
         request,
         preset: SyniPreset.chat,
         seed: 0,

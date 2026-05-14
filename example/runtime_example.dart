@@ -6,9 +6,9 @@ Future<void> main() async {
   final runtime = SyniRuntime();
   
   try {
-    // Initialize
-    runtime.initialize();
-    print('Syni Runtime version: ${runtime.getVersion()}');
+    // Initialize (spawns the worker isolate that owns the engine).
+    await runtime.initialize();
+    print('Syni Runtime version: ${await runtime.getVersion()}');
 
     // Try to use local model first, download if not found
     String modelPath;
@@ -28,7 +28,7 @@ Future<void> main() async {
     }
 
     print('Loading model from $modelPath...');
-    runtime.loadModel(modelPath);
+    await runtime.loadModel(modelPath);
     print('Model loaded successfully!');
 
     // Run inference
@@ -41,7 +41,7 @@ Future<void> main() async {
       },
     );
 
-    final response = runtime.run(
+    final response = await runtime.run(
       request,
       preset: SyniPreset.chat,
       seed: 42,
@@ -58,7 +58,7 @@ Future<void> main() async {
       instruction: 'I feel',
     );
 
-    final keyboardResponse = runtime.run(
+    final keyboardResponse = await runtime.run(
       keyboardRequest,
       preset: SyniPreset.keyboard,
       seed: 42,
@@ -70,6 +70,6 @@ Future<void> main() async {
   } catch (e) {
     print('Error: $e');
   } finally {
-    runtime.dispose();
+    await runtime.dispose();
   }
 }

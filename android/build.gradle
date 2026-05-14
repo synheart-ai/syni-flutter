@@ -48,12 +48,9 @@ android {
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
 
-    // syni-kotlin SDK dependency
-    // For development, use project reference:
-    implementation project(':syni-sdk')
-
-    // For production/published builds, use Maven dependency:
-    // implementation 'com.synheart:syni-sdk:1.0.0'
+    // No native SDK dependency. Inference runs in Dart via dart:ffi against
+    // libsyni_ffi.so, packaged from `android/src/main/jniLibs/<abi>/`. The
+    // previous `implementation project(':syni-sdk')` line was removed when
+    // this package moved to a Dart-FFI-first architecture.
 }

@@ -1,170 +1,152 @@
 import 'dart:ffi';
-import 'dart:io';
 import 'package:ffi/ffi.dart';
 
-/// FFI bindings for syni-runtime C API
+import 'library_loader.dart';
+
+// ---------------------------------------------------------------------------
+// Top-level types
+// ---------------------------------------------------------------------------
+
+/// Opaque engine handle. Matches `struct syni_engine_t` in `c_api.h`.
+typedef SyniEngineNative = Pointer<Void>;
+
+/// Performance preset (mirrors `syni_preset_t` in `c_api.h`).
+enum SyniPreset {
+  keyboard(0),
+  coach(1),
+  chat(2);
+
+  const SyniPreset(this.value);
+  final int value;
+
+  static SyniPreset fromValue(int v) =>
+      values.firstWhere((p) => p.value == v, orElse: () => SyniPreset.chat);
+}
+
+// ---------------------------------------------------------------------------
+// C function signatures (native side)
+// ---------------------------------------------------------------------------
+
+typedef _SyniEngineNewC = Pointer<Void> Function();
+typedef _SyniEngineNewWithModelC = Pointer<Void> Function(Pointer<Utf8>);
+typedef _SyniEngineLoadModelC = Bool Function(Pointer<Void>, Pointer<Utf8>);
+typedef _SyniEngineFreeC = Void Function(Pointer<Void>);
+typedef _SyniStringFreeC = Void Function(Pointer<Utf8>);
+typedef _SyniEngineRunJsonC = Pointer<Utf8> Function(
+  Pointer<Void>,
+  Int32,
+  Uint64,
+  Pointer<Utf8>,
+);
+typedef _SyniVersionC = Pointer<Utf8> Function();
+
+// Streaming: callback returns false to stop early, true to continue.
+typedef _SyniStreamCallbackC = Bool Function(Pointer<Utf8>, Pointer<Void>);
+
+typedef _SyniEngineRunStreamJsonC = Pointer<Utf8> Function(
+  Pointer<Void>,
+  Int32,
+  Uint64,
+  Pointer<Utf8>,
+  Pointer<NativeFunction<_SyniStreamCallbackC>>,
+  Pointer<Void>,
+);
+
+// Dart function signatures (Dart side — see `lookupFunction` second type arg).
+typedef _SyniEngineNewDart = Pointer<Void> Function();
+typedef _SyniEngineNewWithModelDart = Pointer<Void> Function(Pointer<Utf8>);
+typedef _SyniEngineLoadModelDart = bool Function(Pointer<Void>, Pointer<Utf8>);
+typedef _SyniEngineFreeDart = void Function(Pointer<Void>);
+typedef _SyniStringFreeDart = void Function(Pointer<Utf8>);
+typedef _SyniEngineRunJsonDart = Pointer<Utf8> Function(
+  Pointer<Void>,
+  int,
+  int,
+  Pointer<Utf8>,
+);
+typedef _SyniVersionDart = Pointer<Utf8> Function();
+
+typedef _SyniEngineRunStreamJsonDart = Pointer<Utf8> Function(
+  Pointer<Void>,
+  int,
+  int,
+  Pointer<Utf8>,
+  Pointer<NativeFunction<_SyniStreamCallbackC>>,
+  Pointer<Void>,
+);
+
+// ---------------------------------------------------------------------------
+// SyniRuntimeFFI — static facade over the loaded library.
+// ---------------------------------------------------------------------------
+//
+// Notes on isolate semantics:
+// - Each Dart isolate has its own copy of these statics; they are lazy-loaded
+//   per-isolate on first use.
+// - In production the engine pointer is owned by a dedicated worker isolate
+//   (see `isolate_worker.dart`). The main isolate never calls the
+//   engine-touching methods (engineNewWithModel / engineRunJson / engineFree)
+//   directly. Calling them from the main isolate works for tests and for
+//   dart:io / dart:cli contexts but will block the UI thread for the full
+//   inference duration when running under Flutter.
+
 class SyniRuntimeFFI {
+  SyniRuntimeFFI._();
+
   static DynamicLibrary? _lib;
-  static bool _initialized = false;
+  static _SyniEngineNewDart? _engineNew;
+  static _SyniEngineNewWithModelDart? _engineNewWithModel;
+  static _SyniEngineLoadModelDart? _engineLoadModel;
+  static _SyniEngineFreeDart? _engineFree;
+  static _SyniStringFreeDart? _stringFree;
+  static _SyniEngineRunJsonDart? _engineRunJson;
+  static _SyniEngineRunStreamJsonDart? _engineRunStreamJson;
+  static _SyniVersionDart? _version;
 
-  /// Initialize the FFI library
+  /// Force-load the native library and resolve function pointers.
+  ///
+  /// Safe to call multiple times; subsequent calls are no-ops. Returns the
+  /// loaded [DynamicLibrary] for callers that want direct access.
   static DynamicLibrary initialize() {
-    if (_initialized && _lib != null) {
-      return _lib!;
-    }
-
-    DynamicLibrary? library;
-
-    if (Platform.isMacOS) {
-      // Try to load from common locations
-      final paths = [
-        'libsyni_ffi.dylib',
-        '/usr/local/lib/libsyni_ffi.dylib',
-      ];
-      
-      for (final path in paths) {
-        try {
-          library = DynamicLibrary.open(path);
-          break;
-        } catch (e) {
-          // Try next path
-        }
-      }
-    } else if (Platform.isIOS) {
-      // iOS: Load from app bundle (Frameworks)
-      try {
-        library = DynamicLibrary.process();
-      } catch (e) {
-        // Fallback: try explicit path
-        try {
-          library = DynamicLibrary.open('Frameworks/libsyni_ffi.framework/libsyni_ffi');
-        } catch (e2) {
-          // Last resort: try just the library name
-          try {
-            library = DynamicLibrary.open('libsyni_ffi');
-          } catch (e3) {
-            // Will throw below
-          }
-        }
-      }
-    } else if (Platform.isLinux) {
-      try {
-        library = DynamicLibrary.open('libsyni_ffi.so');
-      } catch (e) {
-        // Try alternative
-      }
-    } else if (Platform.isWindows) {
-      try {
-        library = DynamicLibrary.open('syni_ffi.dll');
-      } catch (e) {
-        // Try alternative
-      }
-    } else if (Platform.isAndroid) {
-      // Android: Load from jniLibs (packaged in APK)
-      // The library should be in android/app/src/main/jniLibs/<abi>/libsyni_ffi.so
-      try {
-        library = DynamicLibrary.open('libsyni_ffi.so');
-      } catch (e) {
-        // Try alternative naming
-        try {
-          library = DynamicLibrary.open('syni_ffi');
-        } catch (e2) {
-          // Will throw below
-        }
-      }
-    }
-
-    if (library == null) {
-      throw Exception(
-        'Failed to load syni-runtime library. '
-        'Make sure libsyni_ffi is built and available. '
-        'Build syni-runtime first: cd syni-runtime && cargo build --release',
-      );
-    }
-
-    _lib = library;
-    _initialized = true;
-    return _lib!;
+    final lib = _lib ??= loadSyniLibrary();
+    if (_engineNew == null) _resolve(lib);
+    return lib;
   }
 
-  static DynamicLibrary get lib {
-    if (_lib == null) {
-      return initialize();
-    }
-    return _lib!;
-  }
-
-  // Opaque pointer type for engine
-  typedef SyniEngineNative = Pointer<Void>;
-
-  // Preset enum
-  enum SyniPreset {
-    keyboard(0),
-    coach(1),
-    chat(2);
-
-    final int value;
-    const SyniPreset(this.value);
-  }
-
-  // Function signatures
-  typedef SyniEngineNewNative = Pointer<Void> Function();
-  typedef SyniEngineNewWithModelNative = Pointer<Void> Function(Pointer<Utf8>);
-  typedef SyniEngineLoadModelNative = Bool Function(
-      Pointer<Void>, Pointer<Utf8>);
-  typedef SyniEngineFreeNative = Void Function(Pointer<Void>);
-  typedef SyniStringFreeNative = Void Function(Pointer<Utf8>);
-  typedef SyniEngineRunJsonNative = Pointer<Utf8> Function(
-      Pointer<Void>, Int32, Uint64, Pointer<Utf8>);
-  typedef SyniVersionNative = Pointer<Utf8> Function();
-
-  // Dart function types
-  typedef SyniEngineNew = Pointer<Void> Function();
-  typedef SyniEngineNewWithModel = Pointer<Void> Function(Pointer<Utf8>);
-  typedef SyniEngineLoadModel = bool Function(Pointer<Void>, Pointer<Utf8>);
-  typedef SyniEngineFree = void Function(Pointer<Void>);
-  typedef SyniStringFree = void Function(Pointer<Utf8>);
-  typedef SyniEngineRunJson = Pointer<Utf8> Function(
-      Pointer<Void>, int, int, Pointer<Utf8>);
-  typedef SyniVersion = Pointer<Utf8> Function();
-
-  // Lazy-loaded functions (initialized after library is loaded)
-  static SyniEngineNew? _engineNew;
-  static SyniEngineNewWithModel? _engineNewWithModel;
-  static SyniEngineLoadModel? _engineLoadModel;
-  static SyniEngineFree? _engineFree;
-  static SyniStringFree? _stringFree;
-  static SyniEngineRunJson? _engineRunJson;
-  static SyniVersion? _version;
-
-  static void _ensureFunctionsLoaded() {
-    if (_engineNew != null) return;
-    final l = lib;
-    _engineNew =
-        l.lookupFunction<SyniEngineNewNative, SyniEngineNew>('syni_engine_new');
-
-    _engineNewWithModel = l.lookupFunction<SyniEngineNewWithModelNative,
-        SyniEngineNewWithModel>('syni_engine_new_with_model');
-    _engineLoadModel = l.lookupFunction<SyniEngineLoadModelNative,
-        SyniEngineLoadModel>('syni_engine_load_model');
-    _engineFree = l.lookupFunction<SyniEngineFreeNative, SyniEngineFree>(
+  static void _resolve(DynamicLibrary lib) {
+    _engineNew = lib
+        .lookupFunction<_SyniEngineNewC, _SyniEngineNewDart>('syni_engine_new');
+    _engineNewWithModel =
+        lib.lookupFunction<_SyniEngineNewWithModelC, _SyniEngineNewWithModelDart>(
+            'syni_engine_new_with_model');
+    _engineLoadModel =
+        lib.lookupFunction<_SyniEngineLoadModelC, _SyniEngineLoadModelDart>(
+            'syni_engine_load_model');
+    _engineFree = lib.lookupFunction<_SyniEngineFreeC, _SyniEngineFreeDart>(
         'syni_engine_free');
-    _stringFree = l.lookupFunction<SyniStringFreeNative, SyniStringFree>(
+    _stringFree = lib.lookupFunction<_SyniStringFreeC, _SyniStringFreeDart>(
         'syni_string_free');
-    _engineRunJson = l.lookupFunction<SyniEngineRunJsonNative,
-        SyniEngineRunJson>('syni_engine_run_json');
+    _engineRunJson =
+        lib.lookupFunction<_SyniEngineRunJsonC, _SyniEngineRunJsonDart>(
+            'syni_engine_run_json');
+    _engineRunStreamJson =
+        lib.lookupFunction<_SyniEngineRunStreamJsonC, _SyniEngineRunStreamJsonDart>(
+            'syni_engine_run_stream_json');
     _version =
-        l.lookupFunction<SyniVersionNative, SyniVersion>('syni_version');
+        lib.lookupFunction<_SyniVersionC, _SyniVersionDart>('syni_version');
   }
 
-  // Public API
-  static Pointer<Void> engineNew() {
-    _ensureFunctionsLoaded();
+  // -------------------------------------------------------------------------
+  // Engine lifecycle
+  // -------------------------------------------------------------------------
+
+  static SyniEngineNative engineNew() {
+    initialize();
     return _engineNew!();
   }
 
-  static Pointer<Void> engineNewWithModel(String modelPath) {
-    _ensureFunctionsLoaded();
+  /// Returns [nullptr] on failure (e.g. file not found, invalid GGUF).
+  static SyniEngineNative engineNewWithModel(String modelPath) {
+    initialize();
     final pathPtr = modelPath.toNativeUtf8();
     try {
       return _engineNewWithModel!(pathPtr);
@@ -173,8 +155,9 @@ class SyniRuntimeFFI {
     }
   }
 
-  static bool engineLoadModel(Pointer<Void> engine, String modelPath) {
-    _ensureFunctionsLoaded();
+  /// Replaces the model on an existing engine. Returns `true` on success.
+  static bool engineLoadModel(SyniEngineNative engine, String modelPath) {
+    initialize();
     final pathPtr = modelPath.toNativeUtf8();
     try {
       return _engineLoadModel!(engine, pathPtr);
@@ -183,30 +166,30 @@ class SyniRuntimeFFI {
     }
   }
 
-  static void engineFree(Pointer<Void> engine) {
-    _ensureFunctionsLoaded();
+  static void engineFree(SyniEngineNative engine) {
+    initialize();
     _engineFree!(engine);
   }
 
-  static void stringFree(Pointer<Utf8> str) {
-    _ensureFunctionsLoaded();
-    _stringFree!(str);
-  }
+  // -------------------------------------------------------------------------
+  // Inference
+  // -------------------------------------------------------------------------
 
+  /// Runs a synchronous inference. Returns the JSON response as a Dart
+  /// string, or `null` on failure. The native string buffer is freed
+  /// internally — callers do not need to call [stringFree].
   static String? engineRunJson(
-    Pointer<Void> engine,
+    SyniEngineNative engine,
     SyniPreset preset,
     int seed,
     String requestJson,
   ) {
-    _ensureFunctionsLoaded();
+    initialize();
     final jsonPtr = requestJson.toNativeUtf8();
     try {
       final resultPtr = _engineRunJson!(engine, preset.value, seed, jsonPtr);
-      if (resultPtr == nullptr) {
-        return null;
-      }
-      final result = resultPtr.toDartString();
+      if (resultPtr == nullptr) return null;
+      final result = resultPtr.cast<Utf8>().toDartString();
       _stringFree!(resultPtr);
       return result;
     } finally {
@@ -214,14 +197,73 @@ class SyniRuntimeFFI {
     }
   }
 
-  static String? version() {
-    _ensureFunctionsLoaded();
-    final versionPtr = _version!();
-    if (versionPtr == nullptr) {
-      return null;
+  /// Streaming inference. Same shape as [engineRunJson] but fires [onChunk]
+  /// for each emitted token chunk. Returns the final accumulated JSON.
+  ///
+  /// [onChunk] runs synchronously on the worker isolate's thread (via
+  /// `NativeCallable.isolateLocal`). It should be fast and non-blocking —
+  /// typically just `streamPort.send(chunk)` to forward the chunk to the
+  /// main isolate. Returning `false` from [onChunk] signals the runtime to
+  /// stop generating early (cancellation).
+  ///
+  /// MUST be called from the isolate that loaded the library — passing the
+  /// resulting `NativeCallable` across isolate boundaries is unsupported.
+  static String? engineRunStreamJson(
+    SyniEngineNative engine,
+    SyniPreset preset,
+    int seed,
+    String requestJson,
+    bool Function(String chunk) onChunk,
+  ) {
+    initialize();
+
+    final callable = NativeCallable<_SyniStreamCallbackC>.isolateLocal(
+      (Pointer<Utf8> chunkPtr, Pointer<Void> _) {
+        // chunkPtr is owned by the runtime — do NOT free.
+        final s = chunkPtr.toDartString();
+        return onChunk(s);
+      },
+      exceptionalReturn: false,
+    );
+
+    final jsonPtr = requestJson.toNativeUtf8();
+    try {
+      final resultPtr = _engineRunStreamJson!(
+        engine,
+        preset.value,
+        seed,
+        jsonPtr,
+        callable.nativeFunction,
+        nullptr,
+      );
+      if (resultPtr == nullptr) return null;
+      final result = resultPtr.cast<Utf8>().toDartString();
+      _stringFree!(resultPtr);
+      return result;
+    } finally {
+      malloc.free(jsonPtr);
+      callable.close();
     }
-    final version = versionPtr.toDartString();
-    _stringFree!(versionPtr);
-    return version;
+  }
+
+  // -------------------------------------------------------------------------
+  // Misc
+  // -------------------------------------------------------------------------
+
+  /// Runtime semver string, or `null` if the call failed.
+  static String? version() {
+    initialize();
+    final ptr = _version!();
+    if (ptr == nullptr) return null;
+    final s = ptr.cast<Utf8>().toDartString();
+    _stringFree!(ptr);
+    return s;
+  }
+
+  /// Free a string that was allocated by `syni_string_free` (rare — usually
+  /// the high-level methods handle this for callers).
+  static void stringFree(Pointer<Utf8> ptr) {
+    initialize();
+    _stringFree!(ptr);
   }
 }
