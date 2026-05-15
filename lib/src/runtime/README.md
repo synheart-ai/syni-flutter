@@ -24,28 +24,35 @@ lib/src/runtime/
 
 ## Build flow
 
-The native artifact is built by `syni-runtime`'s Makefile:
+The native artifact is built by `syni-runtime`'s Makefile and vendored
+**into the consumer app** (not into this package — mirrors how
+synheart-core-runtime is provisioned):
 
 ```bash
 cd ../syni-runtime
 make prereqs              # one-time toolchain check
 make targets-install      # install missing rustup targets
-make macos                # host dev build (fast smoke test)
-make ios                  # iOS xcframework
-make android              # Android jniLibs
-make all                  # everything
+
+# Build + vendor into the consumer app in one shot:
+make vendor-app APP_DIR=/path/to/consumer-app
+# or per-platform:
+make vendor-app-android APP_DIR=/path/to/consumer-app
+make vendor-app-ios     APP_DIR=/path/to/consumer-app
 ```
 
-Output layout (`syni-runtime/build/`):
+Vendoring lands the artifacts here, inside the consumer app:
 
 ```
-build/headers/syni_ffi.h
-build/macos/{libsyni_ffi.dylib,libsyni_ffi.a}
-build/ios/SyniRuntime.xcframework/
-build/android/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libsyni_ffi.so
+<app>/synheart/vendor/syni/android/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libsyni_ffi.so
+<app>/synheart/vendor/syni/ios/SyniRuntime.xcframework/
 ```
 
-These are vendored by `syni-flutter`'s podspec / gradle at integration time.
+This package's `android/build.gradle` reaches up into the app
+(`rootProject.projectDir.parentFile/synheart/vendor/syni/...`) and
+`ios/syni.podspec` reaches up via `${PODS_ROOT}/../../` to find them.
+The consumer app also lists the jniLibs path in its own
+`jniLibs.srcDirs`. Keep all three in sync if the `synheart/vendor/syni/`
+layout changes.
 
 ## Quick start (development)
 

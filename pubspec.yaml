@@ -16,6 +16,10 @@ dependencies:
   ffi: ^2.1.0
   path_provider: ^2.1.0
   http: ^1.2.0
+  # Model download SHA-256 verification.
+  crypto: ^3.0.3
+  # BehaviorSubject for the install-state stream in SyniAgent.
+  rxdart: ^0.28.0
 
 dev_dependencies:
   flutter_test:

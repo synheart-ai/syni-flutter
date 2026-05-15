@@ -39,6 +39,19 @@ android {
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
+
+        // Native libsyni_ffi.so is provisioned INTO THE CONSUMER APP by
+        // `make vendor-app-android` (syni-runtime), landing at
+        // <host-app>/synheart/vendor/syni/android/jniLibs/<abi>/. When this
+        // module builds as a subproject of a Flutter app, rootProject.projectDir
+        // is that app's android/ folder, so parentFile = the app root. This
+        // mirrors how synheart-core-runtime is provisioned.
+        // Override via `syni.runtime.android.jniLibs` in gradle.properties.
+        main.jniLibs.srcDirs += [
+            project.findProperty('syni.runtime.android.jniLibs')
+                ?: new File(rootProject.projectDir.parentFile,
+                    'synheart/vendor/syni/android/jniLibs').absolutePath
+        ]
     }
 
     defaultConfig {

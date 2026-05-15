@@ -1,0 +1,17 @@
+/// Public entry point for the Syni agent layer — install lifecycle, model
+/// management, persona binding, and chat orchestration over the local
+/// runtime.
+///
+/// The host SDK (`synheart_core`) consumes this and wraps it with the
+/// four-authority gate + HSI context builder, re-exposing it as
+/// `Synheart.syni`. App developers should depend on `synheart_core`, not
+/// `package:syni` directly.
+library;
+
+export 'src/agent/syni_agent.dart';
+export 'src/agent/syni_chat.dart';
+export 'src/agent/syni_install_state.dart';
+export 'src/agent/syni_installer.dart' show SyniInstaller, SyniInstallException;
+export 'src/agent/syni_model_catalog.dart';
+export 'src/agent/syni_model_spec.dart';
+export 'src/agent/syni_persona.dart';
