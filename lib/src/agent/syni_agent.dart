@@ -156,8 +156,10 @@ class SyniAgent {
     SyniExecutionMode mode = SyniExecutionMode.localFirst,
   }) async {
     final (_, persona) = _requireReady();
-    Future<SyniChatResponse> local() => _localChat(persona, message, hsiContext, seed);
-    Future<SyniChatResponse> cloud() => _cloudChat(persona, message, hsiContext);
+    Future<SyniChatResponse> local() =>
+        _localChat(persona, message, hsiContext, seed);
+    Future<SyniChatResponse> cloud() =>
+        _cloudChat(persona, message, hsiContext);
     return _route(mode, local, cloud);
   }
 
@@ -170,8 +172,10 @@ class SyniAgent {
     SyniExecutionMode mode = SyniExecutionMode.localFirst,
   }) async* {
     final (_, persona) = _requireReady();
-    Stream<SyniChatEvent> local() => _localChatStream(persona, message, hsiContext, seed);
-    Stream<SyniChatEvent> cloud() => _cloudChatStream(persona, message, hsiContext);
+    Stream<SyniChatEvent> local() =>
+        _localChatStream(persona, message, hsiContext, seed);
+    Stream<SyniChatEvent> cloud() =>
+        _cloudChatStream(persona, message, hsiContext);
     yield* _routeStream(mode, local, cloud);
   }
 
@@ -189,7 +193,8 @@ class SyniAgent {
         return local();
       case SyniExecutionMode.cloudOnly:
         if (_cloudClient == null) {
-          throw StateError('cloudOnly requested but no SyniCloudConfig injected');
+          throw StateError(
+              'cloudOnly requested but no SyniCloudConfig injected');
         }
         return cloud();
       case SyniExecutionMode.localFirst:
@@ -212,7 +217,8 @@ class SyniAgent {
         yield* local();
       case SyniExecutionMode.cloudOnly:
         if (_cloudClient == null) {
-          throw StateError('cloudOnly requested but no SyniCloudConfig injected');
+          throw StateError(
+              'cloudOnly requested but no SyniCloudConfig injected');
         }
         yield* cloud();
       case SyniExecutionMode.localFirst:

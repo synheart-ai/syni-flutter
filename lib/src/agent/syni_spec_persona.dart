@@ -49,7 +49,10 @@ class SyniSpecPersona {
     final name = j['name'] as String?;
     final systemPrompt = j['system_prompt'] as String?;
     final outputSchemaId = j['output_schema_id'] as String?;
-    if (id == null || name == null || systemPrompt == null || outputSchemaId == null) {
+    if (id == null ||
+        name == null ||
+        systemPrompt == null ||
+        outputSchemaId == null) {
       throw SyniSpecPersonaException(
         'spec persona missing one of {id, name, system_prompt, output_schema_id}',
       );

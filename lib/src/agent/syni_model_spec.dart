@@ -76,8 +76,7 @@ class SyniModels {
     // ship one, and the candle backend needs it next to the model.
     tokenizerUrl:
         'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/resolve/main/tokenizer.json',
-    sha256:
-        '6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e',
+    sha256: '6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e',
     approxBytes: 1117320736, // ~1.1 GB
   );
 
@@ -97,8 +96,7 @@ class SyniModels {
     // must be uploaded alongside the GGUF for installs to succeed.
     tokenizerUrl:
         'https://huggingface.co/Synheart/syni-life-gguf-gemma-3-1b/resolve/main/tokenizer.json',
-    sha256:
-        '12bf0fff8815d5f73a3c9b586bd8fee8e7b248c935de70dec367679873d0f29d',
+    sha256: '12bf0fff8815d5f73a3c9b586bd8fee8e7b248c935de70dec367679873d0f29d',
     approxBytes: 806058496, // ~770 MB
   );
 }

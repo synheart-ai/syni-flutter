@@ -5,4 +5,3 @@
 library syni_models;
 
 export 'src/models/models.dart';
-

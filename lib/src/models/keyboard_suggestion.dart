@@ -113,5 +113,6 @@ class KeyboardSuggestionResponse {
   bool get hasSuggestions => suggestions.isNotEmpty;
 
   /// Gets the top suggestion, if available.
-  Suggestion? get topSuggestion => suggestions.isNotEmpty ? suggestions.first : null;
+  Suggestion? get topSuggestion =>
+      suggestions.isNotEmpty ? suggestions.first : null;
 }

@@ -1,109 +1,125 @@
 # syni
 
-Flutter (Dart) wrapper for Syni. This package provides two ways to use Syni:
+[![pub package](https://img.shields.io/pub/v/syni.svg)](https://pub.dev/packages/syni)
 
-1. **Platform Channels** (default) - Delegates to native SDKs (syni-swift / syni-kotlin) via platform channels
-2. **FFI Runtime** (new) - Direct FFI wrapper for `syni-runtime` Rust core engine
+Flutter SDK for **Syni** — adaptive, on-device LLM inference with hybrid
+local/cloud chat, structured persona conditioning, and an isolate-worker
+FFI bridge to a Rust runtime.
 
-## Usage
+- **On-device inference** via [`syni-runtime`](https://github.com/synheart-ai/syni-portable-local-engine)
+  (pure-Rust, GGUF). Currently dispatches Qwen2/Qwen2.5 and Gemma 3
+  architectures.
+- **Hybrid local/cloud** chat — same agent API, choose execution mode
+  per call (`localFirst` / `cloudFirst` / `localOnly` / `cloudOnly`).
+- **Persona spec** — versioned persona definitions
+  ([`syni-core-spec`](https://github.com/synheart-ai/syni-core-spec))
+  bundled as assets and resolved by id at runtime.
+- **Isolate worker** so engine load + token generation don't block the UI.
 
-Add the dependency:
+## Install
 
 ```bash
 flutter pub add syni
 ```
 
-Initialize once at app start:
+## Quick start
 
 ```dart
-import 'package:flutter/widgets.dart';
-import 'package:syni/syni.dart';
+import 'package:flutter/material.dart';
+import 'package:syni/agent.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
 
-  await Syni.initialize(const SyniConfig(
-    appId: 'com.example.myapp',
-    appVersion: '1.0.0',
-  ));
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+  @override State<MyApp> createState() => _MyAppState();
+}
 
-  // runApp(...)
+class _MyAppState extends State<MyApp> {
+  final agent = SyniAgent();
+
+  Future<void> _setup() async {
+    final persona = await SyniSpecPersona.load('focus.coach.v1');
+    await agent.install(
+      persona: persona,
+      model: SyniModels.qwen25_15bInstructQ4,
+    );
+    final reply = await agent.chat('How can I focus right now?');
+    debugPrint(reply.displayText);
+  }
+
+  @override
+  Widget build(BuildContext context) => const MaterialApp(/* ... */);
 }
 ```
 
-Generate a response:
+A complete runnable Flutter app is in [`example/`](example/).
+
+## Concepts
+
+### Personas
+
+A persona is a versioned behavioral contract — system prompt, output
+schema, rules. Load by id from the bundled spec:
 
 ```dart
-final response = await Syni.generate(const SyniRequest(
-  personaId: 'keyboard.v1',
-  input: 'Hello, how are',
-));
-
-// Raw structured output
-print(response.outputJson);
+final persona = await SyniSpecPersona.load('focus.coach.v1');
 ```
 
-Typed helpers for known schemas live in `package:syni/models.dart`:
+The same id resolves to the same definition on both client and server,
+so a hybrid chat behaves consistently regardless of execution mode.
+
+### Models
+
+The catalog (`SyniModels`) ships a small curated set with pinned
+SHA-256 hashes verified at install time. Two sample entries:
+
+- `SyniModels.qwen25_15bInstructQ4` — Qwen 2.5 1.5B Instruct Q4_K_M (~1.1 GB)
+- `SyniModels.gemma3_1bInstructQ4` — Gemma 3 1B Instruct Q4_K_M (~770 MB)
+
+For broader catalogs, fetch a server-signed `/v1/models` manifest and
+construct `SyniModelSpec` directly.
+
+### Execution modes
 
 ```dart
-import 'package:syni/syni.dart';
-import 'package:syni/models.dart';
-
-final response = await Syni.generate(const SyniRequest(
-  personaId: 'keyboard.v1',
-  input: 'Hello, how are',
-));
-
-final suggestions = KeyboardSuggestionResponse.fromSyniResponse(response);
-```
-
-## FFI Runtime Wrapper (Direct syni-runtime)
-
-For direct access to the Rust-based `syni-runtime` engine without platform channels:
-
-```dart
-import 'package:syni/src/runtime/runtime.dart';
-
-final runtime = SyniRuntime();
-runtime.initialize();
-
-// Load a local GGUF model or download one
-runtime.loadModel('/path/to/model.gguf');
-// Or: final path = await runtime.downloadModel('https://.../model.gguf');
-
-// Run inference
-final response = runtime.run(
-  SyniRuntimeRequest(instruction: 'Hello!'),
-  preset: SyniPreset.chat,
+await agent.chat(
+  'hello',
+  mode: SyniExecutionMode.localFirst, // try local, fall back to cloud
 );
-
-print(response.rawJson);
-runtime.dispose();
 ```
 
-**Setup:**
-1. Build `syni-runtime`: `cd syni-runtime && cargo build --features llama --release`
-2. Make library accessible (see `lib/src/runtime/README.md` for details)
-3. See `example/runtime_example.dart` for a complete example
+`localOnly` and `cloudOnly` are also available. Cloud mode requires a
+`SyniCloudConfig` injected when constructing the agent.
 
-**Benefits:**
-- Direct access to Rust core engine
-- No platform channel overhead
-- Works with local GGUF models
-- Model downloading built-in
+### Streaming
 
-See `lib/src/runtime/README.md` for detailed setup instructions.
+```dart
+agent.chatStream('hello').listen((event) {
+  if (event is SyniChatDelta) print(event.delta);
+  if (event is SyniChatFinal) print('done: ${event.response.displayText}');
+});
+```
 
-## Platform Channels (Default)
+## Where this fits
 
-This Flutter package can also communicate with native SDKs over a MethodChannel:
+`package:syni` is the agent layer — it owns inference, install
+lifecycle, persona binding, and chat orchestration. It does **not**
+own:
 
-- Channel: `com.synheart.syni/sdk`
-- Methods: `initialize`, `generate`, `getModels`, `downloadModel`, `deleteModel`
+- HSI signal collection / fusion (provided by the host SDK).
+- The four-authority gate (consent + capability + activation +
+  session) — also a host concern.
 
-Native SDK integration (syni-swift / syni-kotlin) is expected to be provided via the iOS podspec and Android Gradle dependency when available.
+If you're building a Synheart-ecosystem app, you typically depend on
+[`synheart_core`](https://github.com/synheart-ai/synheart-core-flutter)
+and use `Synheart.syni`, which wraps this package with those layers.
+Standalone use of `package:syni` is fully supported when you don't
+need the wider Synheart contract.
 
-## Docs
+## License
 
-- Design RFC: `doc/rfc.md`
-- Runtime Wrapper: `lib/src/runtime/README.md`
+MIT. See [`LICENSE`](LICENSE).

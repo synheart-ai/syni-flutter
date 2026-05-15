@@ -192,8 +192,7 @@ class SyniRuntimeWorker {
 
   Future<String?> version() => _send<String?>((reply) => _CmdVersion(reply));
 
-  Future<bool> healthcheck() =>
-      _send<bool>((reply) => _CmdHealthcheck(reply));
+  Future<bool> healthcheck() => _send<bool>((reply) => _CmdHealthcheck(reply));
 
   /// Free the native engine and terminate the worker isolate.
   Future<void> dispose() async {

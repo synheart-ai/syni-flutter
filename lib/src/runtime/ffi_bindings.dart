@@ -115,9 +115,8 @@ class SyniRuntimeFFI {
   static void _resolve(DynamicLibrary lib) {
     _engineNew = lib
         .lookupFunction<_SyniEngineNewC, _SyniEngineNewDart>('syni_engine_new');
-    _engineNewWithModel =
-        lib.lookupFunction<_SyniEngineNewWithModelC, _SyniEngineNewWithModelDart>(
-            'syni_engine_new_with_model');
+    _engineNewWithModel = lib.lookupFunction<_SyniEngineNewWithModelC,
+        _SyniEngineNewWithModelDart>('syni_engine_new_with_model');
     _engineLoadModel =
         lib.lookupFunction<_SyniEngineLoadModelC, _SyniEngineLoadModelDart>(
             'syni_engine_load_model');
@@ -128,9 +127,8 @@ class SyniRuntimeFFI {
     _engineRunJson =
         lib.lookupFunction<_SyniEngineRunJsonC, _SyniEngineRunJsonDart>(
             'syni_engine_run_json');
-    _engineRunStreamJson =
-        lib.lookupFunction<_SyniEngineRunStreamJsonC, _SyniEngineRunStreamJsonDart>(
-            'syni_engine_run_stream_json');
+    _engineRunStreamJson = lib.lookupFunction<_SyniEngineRunStreamJsonC,
+        _SyniEngineRunStreamJsonDart>('syni_engine_run_stream_json');
     _version =
         lib.lookupFunction<_SyniVersionC, _SyniVersionDart>('syni_version');
   }

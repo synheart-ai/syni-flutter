@@ -1,9 +1,18 @@
 name: syni
-description: Flutter SDK for Syni - a unified API for AI-powered features delegating to native SDKs (syni-swift, syni-kotlin) via platform channels.
-version: 1.0.0
-homepage: https://github.com/synheart/syni-dart
-repository: https://github.com/synheart/syni-dart
-issue_tracker: https://github.com/synheart/syni-dart/issues
+description: >-
+  Flutter SDK for Syni — on-device LLM inference + hybrid local/cloud chat,
+  bundled persona spec, and an isolate-worker FFI bridge to a Rust runtime.
+version: 0.1.0
+homepage: https://github.com/synheart-ai/syni-dart
+repository: https://github.com/synheart-ai/syni-dart
+issue_tracker: https://github.com/synheart-ai/syni-dart/issues
+
+topics:
+  - ai
+  - llm
+  - on-device
+  - inference
+  - syni
 
 environment:
   # 3.1.0+: NativeCallable.isolateLocal (used by runtime streaming).
@@ -34,9 +43,7 @@ flutter:
         pluginClass: SyniPlugin
       ios:
         pluginClass: SyniPlugin
-  # Personas mirrored from `syni-core-spec/personas/`. Refresh with the
-  # `tool/sync_personas.sh` script. Consumers load these via
-  # `SyniSpecPersona.load(id)` so they don't have to inline the
-  # system_prompt.
+  # Persona JSON bundled at build time. Consumers resolve them via
+  # `SyniSpecPersona.load(id)`. Refresh with `tool/sync_personas.sh`.
   assets:
     - assets/personas/prod/
