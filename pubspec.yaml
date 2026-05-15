@@ -34,3 +34,9 @@ flutter:
         pluginClass: SyniPlugin
       ios:
         pluginClass: SyniPlugin
+  # Personas mirrored from `syni-core-spec/personas/`. Refresh with the
+  # `tool/sync_personas.sh` script. Consumers load these via
+  # `SyniSpecPersona.load(id)` so they don't have to inline the
+  # system_prompt.
+  assets:
+    - assets/personas/prod/

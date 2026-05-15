@@ -17,3 +17,4 @@ export 'src/agent/syni_installer.dart' show SyniInstaller, SyniInstallException;
 export 'src/agent/syni_model_catalog.dart';
 export 'src/agent/syni_model_spec.dart';
 export 'src/agent/syni_persona.dart';
+export 'src/agent/syni_spec_persona.dart';
