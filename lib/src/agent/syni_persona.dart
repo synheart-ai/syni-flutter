@@ -18,8 +18,14 @@ class SyniPersona {
     this.tone = 'calm',
   });
 
-  /// Stable identifier, e.g. `<persona-name>.v1`. Used for logging /
-  /// telemetry and (future) resolution against `syni-core-spec`.
+  /// Canonical spec persona id, e.g. `focus.coach.v1`. Matches the
+  /// `id` field of the matching JSON file under
+  /// `syni-core-spec/personas/{prod,research}/`. Sent to the cloud as
+  /// `persona_id`; the server uses it to look up the authoritative
+  /// system prompt, rules, budget, and privacy contract.
+  ///
+  /// Local-only consumers may still set this to any stable string,
+  /// but matching the spec id keeps cloud + local behavior aligned.
   final String id;
 
   /// Human-readable name surfaced in host-app UI.

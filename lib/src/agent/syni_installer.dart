@@ -24,6 +24,24 @@ class SyniInstaller {
     return dir;
   }
 
+  /// Whether the GGUF model + its sibling `tokenizer.json` are already on
+  /// disk for the given spec. Used by the cold-start restore path so the
+  /// screen can skip the download UX when nothing actually needs downloading.
+  Future<bool> isModelOnDisk(SyniModelSpec spec) async {
+    final dir = await _modelsDir();
+    final modelFile = File('${dir.path}/${spec.filename}');
+    final tokenizerFile = File('${dir.path}/tokenizer.json');
+    return modelFile.existsSync() && tokenizerFile.existsSync();
+  }
+
+  /// Returns the on-disk path the GGUF would live at — does NOT touch the
+  /// filesystem. Pair with [isModelOnDisk] to drive a "load only, skip
+  /// download" flow.
+  Future<String> modelPathFor(SyniModelSpec spec) async {
+    final dir = await _modelsDir();
+    return '${dir.path}/${spec.filename}';
+  }
+
   /// Returns the path to the model file. Downloads the GGUF and its sibling
   /// `tokenizer.json` if not already on disk. Calls [onProgress] with the
   /// bytes-downloaded fraction.

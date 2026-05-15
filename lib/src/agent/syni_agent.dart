@@ -4,10 +4,22 @@ import 'package:rxdart/rxdart.dart';
 
 import '../runtime/runtime.dart' as rt;
 import 'syni_chat.dart';
+import 'syni_cloud_client.dart';
+import 'syni_cloud_config.dart';
 import 'syni_install_state.dart';
 import 'syni_installer.dart';
 import 'syni_model_spec.dart';
 import 'syni_persona.dart';
+
+/// Where a chat call should run.
+///
+/// - [localOnly]   — always candle on the worker isolate. Throws if no model
+///   is installed. Offline-safe; never touches the network.
+/// - [cloudOnly]   — always `syni-service`. Throws if no cloud config was
+///   injected. Server-side HSI via `include_state`.
+/// - [localFirst]  — try local, fall back to cloud on failure or when local
+///   isn't installed. Sensible default.
+enum SyniExecutionMode { localOnly, cloudOnly, localFirst }
 
 /// Orchestrates an installed, persona-bound Syni: install lifecycle, model
 /// management, and chat over the local runtime worker isolate.
@@ -18,15 +30,27 @@ import 'syni_persona.dart';
 /// (`synheart_core`) wraps this with its four-authority gate and its HSI
 /// context builder; see `Synheart.syni`.
 class SyniAgent {
-  SyniAgent({SyniInstaller? installer})
-      : _installer = installer ?? SyniInstaller();
+  SyniAgent({
+    SyniInstaller? installer,
+    SyniCloudConfig? cloudConfig,
+  })  : _installer = installer ?? SyniInstaller(),
+        _cloudClient =
+            cloudConfig != null ? SyniCloudClient(cloudConfig) : null;
 
   final SyniInstaller _installer;
   final rt.SyniRuntime _runtime = rt.SyniRuntime();
   final BehaviorSubject<SyniInstallState> _state =
       BehaviorSubject<SyniInstallState>.seeded(const SyniNotInstalled());
 
+  /// Optional cloud client — null when no [SyniCloudConfig] was injected.
+  /// When null, [SyniExecutionMode.cloudOnly] throws and [SyniExecutionMode.localFirst]
+  /// has nowhere to fall back to.
+  final SyniCloudClient? _cloudClient;
+
   SyniPersona? _persona;
+
+  /// Whether a cloud client is configured (i.e. cloud chat is reachable).
+  bool get hasCloud => _cloudClient != null;
 
   /// Stream of installation lifecycle events.
   Stream<SyniInstallState> get installState => _state.stream;
@@ -81,6 +105,31 @@ class SyniAgent {
     }
   }
 
+  /// Cold-start restore: if the model + tokenizer are already on disk for
+  /// [model], bind [persona] and load the engine — no download. Otherwise
+  /// leaves state as [SyniNotInstalled] and returns false.
+  ///
+  /// Idempotent. Safe to call from `initState`. Use this so the screen
+  /// doesn't show the Install card with a download warning when the user
+  /// has installed before.
+  Future<bool> restoreInstallIfReady({
+    required SyniPersona persona,
+    required SyniModelSpec model,
+  }) async {
+    if (currentState is SyniInstalled || currentState is SyniInstalling) {
+      return isInstalled;
+    }
+    if (!await _installer.isModelOnDisk(model)) return false;
+    // Files present — install() will skip the download (file exists check)
+    // and go straight to engine load.
+    try {
+      await install(persona: persona, model: model);
+    } catch (_) {
+      // Failure already emitted SyniInstallFailed; the screen handles it.
+    }
+    return isInstalled;
+  }
+
   /// Free the engine + worker isolate. Keeps the downloaded model on disk —
   /// re-installing reuses it.
   Future<void> uninstall() async {
@@ -94,13 +143,107 @@ class SyniAgent {
   // -------------------------------------------------------------------------
 
   /// Run a single chat turn. [hsiContext] is the conditioning payload built
-  /// by the host SDK (or null — the runtime renders nothing for it).
+  /// by the host SDK (or null). [mode] picks local vs cloud — see
+  /// [SyniExecutionMode].
+  ///
+  /// V1 note: all modes still require [install] to have completed (it's
+  /// where the persona is bound). Allowing pure-cloud-without-local-model
+  /// install is a V2 lifecycle change.
   Future<SyniChatResponse> chat(
     String message, {
     Map<String, dynamic>? hsiContext,
     int seed = 0,
+    SyniExecutionMode mode = SyniExecutionMode.localFirst,
   }) async {
-    final (installed, persona) = _requireReady();
+    final (_, persona) = _requireReady();
+    Future<SyniChatResponse> local() => _localChat(persona, message, hsiContext, seed);
+    Future<SyniChatResponse> cloud() => _cloudChat(persona, message, hsiContext);
+    return _route(mode, local, cloud);
+  }
+
+  /// Streaming counterpart to [chat]. Emits [SyniChatDelta]s as tokens
+  /// arrive, then exactly one [SyniChatFinal].
+  Stream<SyniChatEvent> chatStream(
+    String message, {
+    Map<String, dynamic>? hsiContext,
+    int seed = 0,
+    SyniExecutionMode mode = SyniExecutionMode.localFirst,
+  }) async* {
+    final (_, persona) = _requireReady();
+    Stream<SyniChatEvent> local() => _localChatStream(persona, message, hsiContext, seed);
+    Stream<SyniChatEvent> cloud() => _cloudChatStream(persona, message, hsiContext);
+    yield* _routeStream(mode, local, cloud);
+  }
+
+  // -------------------------------------------------------------------------
+  // Routing
+  // -------------------------------------------------------------------------
+
+  Future<SyniChatResponse> _route(
+    SyniExecutionMode mode,
+    Future<SyniChatResponse> Function() local,
+    Future<SyniChatResponse> Function() cloud,
+  ) async {
+    switch (mode) {
+      case SyniExecutionMode.localOnly:
+        return local();
+      case SyniExecutionMode.cloudOnly:
+        if (_cloudClient == null) {
+          throw StateError('cloudOnly requested but no SyniCloudConfig injected');
+        }
+        return cloud();
+      case SyniExecutionMode.localFirst:
+        try {
+          return await local();
+        } catch (e) {
+          if (_cloudClient == null) rethrow;
+          return cloud();
+        }
+    }
+  }
+
+  Stream<SyniChatEvent> _routeStream(
+    SyniExecutionMode mode,
+    Stream<SyniChatEvent> Function() local,
+    Stream<SyniChatEvent> Function() cloud,
+  ) async* {
+    switch (mode) {
+      case SyniExecutionMode.localOnly:
+        yield* local();
+      case SyniExecutionMode.cloudOnly:
+        if (_cloudClient == null) {
+          throw StateError('cloudOnly requested but no SyniCloudConfig injected');
+        }
+        yield* cloud();
+      case SyniExecutionMode.localFirst:
+        // Probe the local stream; on first-event failure, fall back to cloud.
+        // (Mid-stream local failures abort and don't fall back — partial
+        // output to the UI shouldn't be retried with a different backend.)
+        var producedAny = false;
+        try {
+          await for (final e in local()) {
+            producedAny = true;
+            yield e;
+          }
+          return;
+        } catch (e) {
+          if (producedAny || _cloudClient == null) rethrow;
+          yield* cloud();
+        }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Local path (candle runtime)
+  // -------------------------------------------------------------------------
+
+  Future<SyniChatResponse> _localChat(
+    SyniPersona persona,
+    String message,
+    Map<String, dynamic>? hsiContext,
+    int seed,
+  ) async {
+    final installed = currentState as SyniInstalled;
     final raw = await _runtime.run(
       rt.SyniRuntimeRequest(
         instruction: _formatInstruction(persona, message),
@@ -117,14 +260,13 @@ class SyniAgent {
     );
   }
 
-  /// Streaming counterpart to [chat]. Emits [SyniChatDelta]s as tokens
-  /// arrive, then exactly one [SyniChatFinal].
-  Stream<SyniChatEvent> chatStream(
-    String message, {
+  Stream<SyniChatEvent> _localChatStream(
+    SyniPersona persona,
+    String message,
     Map<String, dynamic>? hsiContext,
-    int seed = 0,
-  }) async* {
-    final (installed, persona) = _requireReady();
+    int seed,
+  ) async* {
+    final installed = currentState as SyniInstalled;
     final stream = _runtime.runStream(
       rt.SyniRuntimeRequest(
         instruction: _formatInstruction(persona, message),
@@ -145,6 +287,34 @@ class SyniAgent {
         ));
       }
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Cloud path (syni-service)
+  // -------------------------------------------------------------------------
+
+  Future<SyniChatResponse> _cloudChat(
+    SyniPersona persona,
+    String message,
+    Map<String, dynamic>? hsiContext,
+  ) {
+    return _cloudClient!.chat(
+      message: message,
+      persona: persona,
+      hsiContext: hsiContext,
+    );
+  }
+
+  Stream<SyniChatEvent> _cloudChatStream(
+    SyniPersona persona,
+    String message,
+    Map<String, dynamic>? hsiContext,
+  ) {
+    return _cloudClient!.chatStream(
+      message: message,
+      persona: persona,
+      hsiContext: hsiContext,
+    );
   }
 
   // -------------------------------------------------------------------------

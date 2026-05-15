@@ -97,6 +97,26 @@ class SyniChatResponse {
         .whereType<String>()
         .toList();
   }
+
+  /// Build a response from a cloud `reply` string.
+  ///
+  /// `syni-service`'s non-streaming response is `{reply: "<plain text>", …}`
+  /// and its SSE `content` chunks are also plain text — there is no tagged
+  /// `EngineResponse` envelope on the cloud path. Treat as [SyniResponseKind.chat].
+  factory SyniChatResponse.fromCloudReply(
+    String reply, {
+    required String personaId,
+    required String runtimeVersion,
+  }) {
+    return SyniChatResponse._(
+      personaId: personaId,
+      runtimeVersion: runtimeVersion,
+      rawJson: reply,
+      kind: SyniResponseKind.chat,
+      message: reply,
+      suggestions: const [],
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

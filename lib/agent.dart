@@ -10,6 +10,8 @@ library;
 
 export 'src/agent/syni_agent.dart';
 export 'src/agent/syni_chat.dart';
+export 'src/agent/syni_cloud_client.dart' show SyniCloudException;
+export 'src/agent/syni_cloud_config.dart';
 export 'src/agent/syni_install_state.dart';
 export 'src/agent/syni_installer.dart' show SyniInstaller, SyniInstallException;
 export 'src/agent/syni_model_catalog.dart';
