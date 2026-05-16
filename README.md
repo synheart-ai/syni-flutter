@@ -3,7 +3,7 @@
 [![pub package](https://img.shields.io/pub/v/syni.svg)](https://pub.dev/packages/syni)
 [![pub points](https://img.shields.io/pub/points/syni)](https://pub.dev/packages/syni/score)
 [![popularity](https://img.shields.io/pub/popularity/syni)](https://pub.dev/packages/syni/score)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Flutter SDK for **Syni** — adaptive on-device LLM inference with hybrid
 local/cloud chat, structured persona conditioning, and a streaming chat
@@ -150,4 +150,4 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the local dev loop.
 
 ## License
 
-[MIT](LICENSE) © Synheart.
+[Apache 2.0](LICENSE) © Synheart.
