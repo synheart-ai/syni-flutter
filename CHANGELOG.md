@@ -17,8 +17,9 @@ First public release.
 
 ### Runtime layer (`package:syni/runtime.dart`)
 
-- `SyniRuntime` — isolate-worker FFI bridge to `syni-runtime`. Engine
-  load + token generation run on a worker so the UI thread is free.
+- `SyniRuntime` — worker-isolate wrapper over the on-device inference
+  engine. Engine load + token generation run on a worker so the UI
+  thread is free.
 - `SyniRuntimeRequest` / `SyniRuntimeResponse` for direct inference.
 
 ### Models

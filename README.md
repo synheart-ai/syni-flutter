@@ -1,28 +1,69 @@
 # syni
 
 [![pub package](https://img.shields.io/pub/v/syni.svg)](https://pub.dev/packages/syni)
+[![pub points](https://img.shields.io/pub/points/syni)](https://pub.dev/packages/syni/score)
+[![popularity](https://img.shields.io/pub/popularity/syni)](https://pub.dev/packages/syni/score)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Flutter SDK for **Syni** — adaptive, on-device LLM inference with hybrid
-local/cloud chat, structured persona conditioning, and an isolate-worker
-FFI bridge to a Rust runtime.
+Flutter SDK for **Syni** — adaptive on-device LLM inference with hybrid
+local/cloud chat, structured persona conditioning, and a streaming chat
+API designed for the UI thread.
 
-- **On-device inference** via [`syni-runtime`](https://github.com/synheart-ai/syni-portable-local-engine)
-  (pure-Rust, GGUF). Currently dispatches Qwen2/Qwen2.5 and Gemma 3
-  architectures.
-- **Hybrid local/cloud** chat — same agent API, choose execution mode
-  per call (`localFirst` / `cloudFirst` / `localOnly` / `cloudOnly`).
-- **Persona spec** — versioned persona definitions
-  ([`syni-core-spec`](https://github.com/synheart-ai/syni-core-spec))
-  bundled as assets and resolved by id at runtime.
-- **Isolate worker** so engine load + token generation don't block the UI.
+---
 
-## Install
+## Features
+
+- 🧠 **On-device inference** — Qwen 2 / 2.5 and Gemma 3 GGUF models
+  out of the box; bring your own GGUF for other supported architectures.
+- 🌐 **Hybrid local / cloud** — same agent API, choose execution mode
+  per call (`localFirst`, `cloudFirst`, `localOnly`, `cloudOnly`).
+- 🎭 **Versioned personas** — load by id from bundled
+  [`syni-core-spec`](https://github.com/synheart-ai/syni-core-spec) JSON;
+  the same id resolves to the same behavior on client and server.
+- 🧵 **Worker isolate** so engine load + token generation don't block
+  the UI thread.
+- 🔒 **Verified model downloads** — pinned SHA-256 per model, checked
+  at install time.
+- 📡 **Streaming chat** with token-level deltas plus a final structured
+  response.
+
+## Platform support
+
+| Android | iOS | macOS | Linux | Windows | Web |
+| :-----: | :-: | :---: | :---: | :-----: | :-: |
+|   ✅    | ✅  |  🚧   |  🚧   |   🚧    | ❌  |
+
+Android + iOS are the supported targets today. Desktop targets are in
+the works. Web is out of scope.
+
+## Getting started
+
+Add the dependency:
 
 ```bash
 flutter pub add syni
 ```
 
-## Quick start
+Install the runtime via the Synheart CLI:
+
+```bash
+synheart install syni
+```
+
+This drops the platform binaries into your app's vendor tree
+(`synheart/vendor/syni/`) so Gradle / Cocoapods can link them. Re-run
+the command anytime you want to refresh — it's idempotent.
+
+Then import the agent layer:
+
+```dart
+import 'package:syni/agent.dart';
+```
+
+## Usage
+
+A complete runnable Flutter app lives in [`example/`](example/). The
+abridged version:
 
 ```dart
 import 'package:flutter/material.dart';
@@ -30,96 +71,83 @@ import 'package:syni/agent.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
-}
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
-  @override State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
   final agent = SyniAgent();
 
-  Future<void> _setup() async {
-    final persona = await SyniSpecPersona.load('focus.coach.v1');
-    await agent.install(
-      persona: persona,
-      model: SyniModels.qwen25_15bInstructQ4,
-    );
-    final reply = await agent.chat('How can I focus right now?');
-    debugPrint(reply.displayText);
-  }
+  // Load a persona by id from the bundled spec assets.
+  final persona = await SyniSpecPersona.load('focus.coach.v1');
 
-  @override
-  Widget build(BuildContext context) => const MaterialApp(/* ... */);
+  // First-run install: download + verify the model, load the engine,
+  // bind the persona. Emits lifecycle events on agent.installState.
+  await agent.install(
+    persona: persona,
+    model: SyniModels.qwen25_15bInstructQ4,
+  );
+
+  // Single-turn chat.
+  final response = await agent.chat('How can I focus right now?');
+  debugPrint(response.displayText);
 }
 ```
-
-A complete runnable Flutter app is in [`example/`](example/).
-
-## Concepts
-
-### Personas
-
-A persona is a versioned behavioral contract — system prompt, output
-schema, rules. Load by id from the bundled spec:
-
-```dart
-final persona = await SyniSpecPersona.load('focus.coach.v1');
-```
-
-The same id resolves to the same definition on both client and server,
-so a hybrid chat behaves consistently regardless of execution mode.
-
-### Models
-
-The catalog (`SyniModels`) ships a small curated set with pinned
-SHA-256 hashes verified at install time. Two sample entries:
-
-- `SyniModels.qwen25_15bInstructQ4` — Qwen 2.5 1.5B Instruct Q4_K_M (~1.1 GB)
-- `SyniModels.gemma3_1bInstructQ4` — Gemma 3 1B Instruct Q4_K_M (~770 MB)
-
-For broader catalogs, fetch a server-signed `/v1/models` manifest and
-construct `SyniModelSpec` directly.
-
-### Execution modes
-
-```dart
-await agent.chat(
-  'hello',
-  mode: SyniExecutionMode.localFirst, // try local, fall back to cloud
-);
-```
-
-`localOnly` and `cloudOnly` are also available. Cloud mode requires a
-`SyniCloudConfig` injected when constructing the agent.
 
 ### Streaming
 
 ```dart
 agent.chatStream('hello').listen((event) {
-  if (event is SyniChatDelta) print(event.delta);
-  if (event is SyniChatFinal) print('done: ${event.response.displayText}');
+  switch (event) {
+    case SyniChatDelta(:final delta):
+      stdout.write(delta);
+    case SyniChatFinal(:final response):
+      print('\n[${response.displayText.length} chars]');
+  }
 });
+```
+
+### Hybrid local / cloud
+
+```dart
+final agent = SyniAgent(
+  cloudConfig: SyniCloudConfig(
+    baseUrl: 'https://api.synheart.ai',
+    authToken: () async => '<bearer-token>',
+    tenantId: '<tenant>',
+    userId: '<user>',
+  ),
+);
+
+await agent.chat(
+  'how was my recent session?',
+  mode: SyniExecutionMode.cloudFirst, // try cloud, fall back to local
+);
 ```
 
 ## Where this fits
 
-`package:syni` is the agent layer — it owns inference, install
-lifecycle, persona binding, and chat orchestration. It does **not**
-own:
+`package:syni` is the **agent layer** — inference, install lifecycle,
+persona binding, chat orchestration. It does not own:
 
-- HSI signal collection / fusion (provided by the host SDK).
-- The four-authority gate (consent + capability + activation +
-  session) — also a host concern.
+- HSI signal collection (the
+  [`synheart_core`](https://github.com/synheart-ai/synheart-core-flutter)
+  SDK does), or
+- the four-authority gate (consent + capability + activation + session;
+  also a host concern).
 
-If you're building a Synheart-ecosystem app, you typically depend on
-[`synheart_core`](https://github.com/synheart-ai/synheart-core-flutter)
-and use `Synheart.syni`, which wraps this package with those layers.
-Standalone use of `package:syni` is fully supported when you don't
-need the wider Synheart contract.
+Synheart-ecosystem apps typically depend on `synheart_core` and use
+`Synheart.syni`, which wraps this package with those layers. Standalone
+use of `package:syni` is fully supported when you don't need the wider
+Synheart contract.
+
+## Documentation
+
+- [API reference on pub.dev](https://pub.dev/documentation/syni/latest/)
+- [Persona spec](https://github.com/synheart-ai/syni-core-spec)
+
+## Contributing
+
+Issues and PRs welcome —
+[github.com/synheart-ai/syni-flutter](https://github.com/synheart-ai/syni-flutter).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the local dev loop.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+[MIT](LICENSE) © Synheart.
