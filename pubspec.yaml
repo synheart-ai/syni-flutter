@@ -1,0 +1,50 @@
+name: syni
+description: >-
+  Flutter SDK for Syni — adaptive on-device LLM inference with hybrid
+  local/cloud chat, structured persona conditioning, and a streaming
+  chat API designed for the UI thread.
+version: 0.1.0
+homepage: https://github.com/synheart-ai/syni-flutter
+repository: https://github.com/synheart-ai/syni-flutter
+issue_tracker: https://github.com/synheart-ai/syni-flutter/issues
+
+topics:
+  - ai
+  - llm
+  - on-device
+  - inference
+  - syni
+
+environment:
+  # 3.1.0+: NativeCallable.isolateLocal (used by runtime streaming).
+  sdk: '>=3.1.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.1.0
+  path_provider: ^2.1.0
+  http: ^1.2.0
+  # Model download SHA-256 verification.
+  crypto: ^3.0.3
+  # BehaviorSubject for the install-state stream in SyniAgent.
+  rxdart: ^0.28.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.synheart.syni
+        pluginClass: SyniPlugin
+      ios:
+        pluginClass: SyniPlugin
+  # Persona JSON bundled at build time. Consumers resolve them via
+  # `SyniSpecPersona.load(id)`. Refresh with `tool/sync_personas.sh`.
+  assets:
+    - assets/personas/prod/

@@ -1,0 +1,40 @@
+# Dart / Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Android
+android/.gradle/
+android/local.properties
+android/**/build/
+
+# iOS / macOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework/
+ios/Flutter/Flutter.podspec
+ios/Flutter/App.framework/
+ios/Flutter/engine/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/DerivedData/
+
+# Misc
+*.log
+.DS_Store
+
+docs/*
+
+# example apps maintain their own lockfile locally; the root SDK's
+# pubspec.lock is the only one we track.
+example/pubspec.lock
+example_mobile/pubspec.lock

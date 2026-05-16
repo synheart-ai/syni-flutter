@@ -1,0 +1,19 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  # example_mobile/ is a richer demo app with its own pubspec.yaml. It uses
+  # packages (file_picker) the root SDK doesn't depend on, so analyzing it
+  # from the root context produces false-positive uri_does_not_exist errors.
+  # Its own pubspec context handles its analysis when opened standalone.
+  exclude:
+    - example_mobile/**
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_final_fields
+    - prefer_final_locals
+    - avoid_print
+    - avoid_unnecessary_containers
+    - prefer_single_quotes
