@@ -27,15 +27,6 @@ API designed for the UI thread.
 - 📡 **Streaming chat** with token-level deltas plus a final structured
   response.
 
-## Platform support
-
-| Android | iOS | macOS | Linux | Windows | Web |
-| :-----: | :-: | :---: | :---: | :-----: | :-: |
-|   ✅    | ✅  |  🚧   |  🚧   |   🚧    | ❌  |
-
-Android + iOS are the supported targets today. Desktop targets are in
-the works. Web is out of scope.
-
 ## Getting started
 
 Add the dependency:
