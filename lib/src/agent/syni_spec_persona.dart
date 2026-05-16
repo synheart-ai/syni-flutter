@@ -4,12 +4,12 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import 'syni_persona.dart';
 
-/// Loads a [SyniPersona] from a bundled `syni-core-spec` JSON asset.
+/// Loads a [SyniPersona] from a bundled `syni-spec` JSON asset.
 ///
 /// Consumers should prefer this over inlining persona fields (id,
 /// system_prompt, output schema) in app code — the spec file is the
 /// authoritative definition shared with the cloud, and keeping consumers
-/// at arm's length from it means a single update in `syni-core-spec`
+/// at arm's length from it means a single update in `syni-spec`
 /// propagates everywhere on the next sync + rebuild.
 ///
 /// V1 lookup is by id only (e.g. `focus.coach.v1`) and searches the

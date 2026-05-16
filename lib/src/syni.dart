@@ -9,7 +9,7 @@ class SyniVersionInfo {
   /// The version of the native SDK.
   final String nativeSdkVersion;
 
-  /// The syni-core-spec version supported by the native SDK.
+  /// The syni-spec version supported by the native SDK.
   final String specVersion;
 
   const SyniVersionInfo({
@@ -59,7 +59,7 @@ class Syni {
   /// The minimum supported syni-kotlin version.
   static const String minKotlinVersion = '1.2.0';
 
-  /// The supported syni-core-spec version range.
+  /// The supported syni-spec version range.
   static const String supportedSpecVersion = '1.1.x';
 
   /// Prevent instantiation.

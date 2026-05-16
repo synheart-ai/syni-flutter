@@ -15,7 +15,7 @@ import 'syni_persona.dart';
 /// the optional `context` map for richer conditioning.
 ///
 /// Persona: sends [SyniPersona.id] as the request's `persona_id`. The
-/// server resolves it against its embedded `syni-core-spec` registry —
+/// server resolves it against its embedded `syni-spec` registry —
 /// the authoritative source for system prompt, rules, budget, and privacy.
 class SyniCloudClient {
   SyniCloudClient(this._config, {http.Client? httpClient})
@@ -186,7 +186,7 @@ class SyniCloudClient {
     return {
       'message': message,
       // Canonical spec persona id (e.g. `focus.coach.v1`). The server
-      // resolves it against the embedded syni-core-spec registry.
+      // resolves it against the embedded syni-spec registry.
       'persona_id': persona.id,
       'tenant_id': _config.tenantId,
       'user_id': _config.userId,

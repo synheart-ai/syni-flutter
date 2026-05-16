@@ -33,7 +33,7 @@ First public release.
 
 ### Personas (bundled assets)
 
-Five spec personas mirrored from `syni-core-spec` and bundled under
+Five spec personas mirrored from `syni-spec` and bundled under
 `assets/personas/prod/`:
 
 - `focus.coach.v1`

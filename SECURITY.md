@@ -44,4 +44,4 @@ maintainers.
 - Issues in example/demo code clearly marked as non-production.
 - Model outputs (hallucinations, jailbreaks, prompt-injection in user content).
   Persona-spec or safety-rail bypasses should be reported against
-  [`syni-core-spec`](https://github.com/synheart-ai/syni-core-spec) instead.
+  [`syni-spec`](https://github.com/synheart-ai/syni-spec) instead.

@@ -3,7 +3,7 @@
 /// This is the generic *type* only. `syni-flutter` defines no concrete
 /// personas — that is a product / spec concern. Personas are either:
 /// - supplied by the host app and passed to `SyniAgent.install()`, or
-/// - (future) loaded from `syni-core-spec` bundled assets.
+/// - (future) loaded from `syni-spec` bundled assets.
 ///
 /// Syni privileges no domain (focus, recovery, stress, …); the persona's
 /// [systemPrompt] decides what the agent attends to.
@@ -20,7 +20,7 @@ class SyniPersona {
 
   /// Canonical spec persona id, e.g. `focus.coach.v1`. Matches the
   /// `id` field of the matching JSON file under
-  /// `syni-core-spec/personas/{prod,research}/`. Sent to the cloud as
+  /// `syni-spec/personas/{prod,research}/`. Sent to the cloud as
   /// `persona_id`; the server uses it to look up the authoritative
   /// system prompt, rules, budget, and privacy contract.
   ///

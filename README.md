@@ -18,7 +18,7 @@ API designed for the UI thread.
 - 🌐 **Hybrid local / cloud** — same agent API, choose execution mode
   per call (`localFirst`, `cloudFirst`, `localOnly`, `cloudOnly`).
 - 🎭 **Versioned personas** — load by id from bundled
-  [`syni-core-spec`](https://github.com/synheart-ai/syni-core-spec) JSON;
+  [`syni-spec`](https://github.com/synheart-ai/syni-spec) JSON;
   the same id resolves to the same behavior on client and server.
 - 🧵 **Worker isolate** so engine load + token generation don't block
   the UI thread.
@@ -140,7 +140,7 @@ Synheart contract.
 ## Documentation
 
 - [API reference on pub.dev](https://pub.dev/documentation/syni/latest/)
-- [Persona spec](https://github.com/synheart-ai/syni-core-spec)
+- [Persona spec](https://github.com/synheart-ai/syni-spec)
 
 ## Contributing
 
