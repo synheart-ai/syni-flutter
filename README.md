@@ -136,9 +136,10 @@ Synheart contract.
 
 ## Contributing
 
-Issues and PRs welcome —
-[github.com/synheart-ai/syni-flutter](https://github.com/synheart-ai/syni-flutter).
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the local dev loop.
+This is a source-available repository. Issues and feature requests are
+welcome; pull requests are not accepted at this time. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the rationale and the supported
+contribution path. Security reports go through [SECURITY.md](SECURITY.md).
 
 ## License
 

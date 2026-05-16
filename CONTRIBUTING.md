@@ -50,17 +50,48 @@ CI runs `dart format`, `flutter analyze --no-fatal-infos`,
 `dart pub publish --dry-run`, and `flutter test` on every push and PR.
 All four must be green.
 
-## Pull requests
+## Why we do not accept pull requests
 
-- Keep changes focused; one concern per PR.
-- Run `dart format` before committing.
-- `dart analyze` must be clean — the package targets zero analyzer
-  warnings.
-- New public APIs need dartdoc.
-- New behavior needs at least one test under `test/`.
-- Update [`CHANGELOG.md`](CHANGELOG.md) under the **Unreleased**
-  section using [Keep a Changelog](https://keepachangelog.com/) style
-  (`Added` / `Changed` / `Fixed` / `Removed`).
+This SDK is developed in an internal monorepo and mirrored to GitHub for
+transparency. The public repository is source-available so anyone can read,
+audit, and learn from the code that runs on their device — but the project is
+not yet ready to absorb external code contributions.
+
+Specifically:
+
+- **Spec stability.** The Syni runtime contract and the persona/safety
+  schemas in `syni-spec` are still evolving against internal RFCs.
+  Accepting external changes before the spec settles would create churn
+  for everyone, including contributors.
+- **Review capacity.** A small team maintains this code. We would rather
+  invest review time in stabilizing the runtime than in bouncing PRs back
+  for rework.
+- **Provenance.** We avoid contributor licensing overhead (CLAs, copyright
+  assignment) by sourcing all code internally.
+
+External pull requests are auto-closed by the
+[`close-external-prs`](.github/workflows/close-external-prs.yml) workflow.
+This is a temporary policy and may relax once the spec is stable. Until
+then, issues are the supported way to influence the direction of the SDK.
+
+## What about typo / docs fixes?
+
+Even small documentation fixes are best filed as an issue. Quote the section,
+suggest the change, and we will roll it into the next internal sync. This
+keeps a single contribution path and avoids ambiguity about what is in scope.
+
+## Internal dev style notes
+
+For Synheart team members working in the internal monorepo, the gates the CI
+workflow checks before any commit lands:
+
+- `dart format` clean (CI runs `dart format --output=none --set-exit-if-changed .`)
+- `flutter analyze --no-fatal-infos` clean
+- `dart pub publish --dry-run` clean (catches LICENSE/pubspec regressions)
+- `flutter test` green
+- New public APIs need dartdoc; new behavior needs a test under `test/`.
+- CHANGELOG updated under the **Unreleased** section using
+  [Keep a Changelog](https://keepachangelog.com/) style.
 
 ## Reporting issues
 
