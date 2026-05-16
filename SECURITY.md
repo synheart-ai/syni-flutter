@@ -43,5 +43,6 @@ maintainers.
   proof-of-concept.
 - Issues in example/demo code clearly marked as non-production.
 - Model outputs (hallucinations, jailbreaks, prompt-injection in user content).
-  Persona-spec or safety-rail bypasses should be reported against
-  [`syni-spec`](https://github.com/synheart-ai/syni-spec) instead.
+  For persona-spec or safety-rail bypasses, please email security@synheart.ai
+  with the persona id and reproducer (the spec itself is maintained
+  separately from this SDK).

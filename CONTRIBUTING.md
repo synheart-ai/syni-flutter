@@ -3,8 +3,8 @@
 Thanks for your interest in `syni`. This is the Dart/Flutter side of the
 Synheart on-device LLM stack — for issues with model behavior or runtime
 crashes the right place is usually the bug template here, but for persona
-content changes see
-[`syni-spec`](https://github.com/synheart-ai/syni-spec).
+content questions see the
+[Syni Spec documentation](https://docs.synheart.ai/syni-spec/overview).
 
 ## Local dev loop
 
