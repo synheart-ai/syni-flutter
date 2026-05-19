@@ -2,8 +2,8 @@
 ///
 /// V1 ships a small curated catalog ([SyniModels]). Production builds should
 /// validate [sha256] against a release manifest signed by Synheart's release
-/// key — and ultimately fetch the whole catalog from `synheart-cloud` rather
-/// than hard-coding it here.
+/// key — and ultimately fetch the whole catalog from a remote model catalog
+/// endpoint rather than hard-coding it here.
 library;
 
 class SyniModelSpec {
@@ -53,7 +53,7 @@ class SyniModelSpec {
 }
 
 /// V1 model catalog. Replace with a server-signed manifest fetched from
-/// `synheart-cloud` once that exists. Pinned SHA-256 values come from the
+/// the remote model catalog once that exists. Pinned SHA-256 values come from the
 /// HuggingFace LFS `x-linked-etag` header, which is the underlying file's
 /// SHA-256 for LFS-stored objects.
 class SyniModels {

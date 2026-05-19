@@ -6,8 +6,12 @@ import 'dart:io' show Platform;
 /// Linkage layout matches what `syni-runtime/Makefile` produces and what the
 /// Flutter plugin's podspec / gradle vendors:
 ///
-/// - **iOS**: static `.a` inside `SyniRuntime.xcframework`, linked into the
-///   app binary via the Flutter plugin podspec → `DynamicLibrary.process()`.
+/// - **iOS**: dynamic `SyniRuntime.framework` inside
+///   `SyniRuntime.xcframework`, embedded into the app bundle via
+///   `vendored_frameworks`. The iOS dynamic loader maps it at process
+///   start under the framework's `@rpath` install_name; we open it
+///   here by the framework's executable name (no path, no `.dylib`
+///   suffix — Mach-O framework convention).
 /// - **macOS**: dev workflow prefers `DynamicLibrary.open` so the dylib can
 ///   be picked up via `DYLD_LIBRARY_PATH`; falls back to `process()` when a
 ///   Flutter macOS plugin links the static lib into the app.
@@ -19,7 +23,12 @@ import 'dart:io' show Platform;
 /// Throws [UnsupportedError] for unsupported platforms.
 DynamicLibrary loadSyniLibrary() {
   if (Platform.isIOS) {
-    return DynamicLibrary.process();
+    // Mach-O lookup by framework executable name. Equivalent to
+    // dlopen("SyniRuntime.framework/SyniRuntime", RTLD_NOW). Works
+    // because CocoaPods auto-embeds the framework into the app
+    // bundle's Frameworks/ dir and the dylib's install_name is
+    // @rpath/SyniRuntime.framework/SyniRuntime.
+    return DynamicLibrary.open('SyniRuntime.framework/SyniRuntime');
   }
   if (Platform.isMacOS) {
     for (final path in const [
