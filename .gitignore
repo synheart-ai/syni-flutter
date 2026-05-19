@@ -38,3 +38,6 @@ docs/*
 # pubspec.lock is the only one we track.
 example/pubspec.lock
 example_mobile/pubspec.lock
+# Symlink the podspec prepare_command creates at pod-install time,
+# pointing at the consumer app's vendor dir. Never committed.
+ios/SyniRuntime.xcframework
