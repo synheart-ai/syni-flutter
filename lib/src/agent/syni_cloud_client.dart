@@ -7,7 +7,7 @@ import 'syni_chat.dart';
 import 'syni_cloud_config.dart';
 import 'syni_persona.dart';
 
-/// HTTP + SSE client for `syni-service` `/v1/chat[/stream]`.
+/// HTTP + SSE client for the Syni cloud `/v1/chat[/stream]` API.
 ///
 /// Owns a sticky `session_id` for the agent's lifetime so the server can
 /// thread multi-turn context. HSI is pulled server-side via
@@ -71,7 +71,7 @@ class SyniCloudClient {
   /// [SyniChatFinal] when the server emits `{type: "done"}`. Server errors
   /// surface as a thrown [SyniCloudException].
   ///
-  /// SSE wire format (per `syni-service`):
+  /// SSE wire format (per the Syni cloud API):
   /// ```
   /// data: {"type":"content","content":"<chunk>"}
   /// data: {"type":"done","session_id":"<id>"}

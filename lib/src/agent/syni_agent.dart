@@ -15,7 +15,7 @@ import 'syni_persona.dart';
 ///
 /// - [localOnly]   — always candle on the worker isolate. Throws if no model
 ///   is installed. Offline-safe; never touches the network.
-/// - [cloudOnly]   — always `syni-service`. Throws if no cloud config was
+/// - [cloudOnly]   — always the Syni cloud. Throws if no cloud config was
 ///   injected. Server-side HSI via `include_state`.
 /// - [localFirst]  — try local, fall back to cloud on failure or when local
 ///   isn't installed. Sensible default.
@@ -296,7 +296,7 @@ class SyniAgent {
   }
 
   // -------------------------------------------------------------------------
-  // Cloud path (syni-service)
+  // Cloud path
   // -------------------------------------------------------------------------
 
   Future<SyniChatResponse> _cloudChat(

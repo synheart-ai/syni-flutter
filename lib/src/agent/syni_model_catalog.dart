@@ -93,7 +93,7 @@ class SyniLocalModel extends SyniModelOption {
   final SyniModelSpec spec;
 }
 
-/// A server-side model — runs via `syni-service`. [serviceModelId] is the
+/// A server-side model — runs in the Syni cloud. [serviceModelId] is the
 /// id the service routes to internally; the client never needs the
 /// provider/model details.
 class SyniCloudModel extends SyniModelOption {
@@ -110,7 +110,7 @@ class SyniCloudModel extends SyniModelOption {
   final String serviceModelId;
 }
 
-/// Fetches + caches the Syni model catalog from `syni-service`
+/// Fetches + caches the Syni model catalog from the Syni cloud
 /// `GET /v1/models`.
 ///
 /// Auth token and base URL are **injected by the host SDK** (`synheart_core`)
@@ -162,7 +162,7 @@ class SyniModelCatalog {
   }
 
   /// The bundled fallback catalog — always available, no network. Mirrors
-  /// `syni-service`'s `GetDefaultModels`. Kept in sync by hand for V1; once
+  /// the Syni cloud's `GetDefaultModels`. Kept in sync by hand for V1; once
   /// the manifest is authoritative this is purely an offline safety net.
   static List<SyniModelOption> get bundled => [
         SyniLocalModel(

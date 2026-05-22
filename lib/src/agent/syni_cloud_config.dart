@@ -18,7 +18,7 @@ class SyniCloudConfig {
     this.deviceId = '',
   });
 
-  /// `syni-service` base URL, e.g. `https://api.synheart.ai` or
+  /// Syni cloud base URL, e.g. `https://api.synheart.ai` or
   /// `http://localhost:8093` for dev.
   final String baseUrl;
 
