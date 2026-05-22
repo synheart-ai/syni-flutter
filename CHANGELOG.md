@@ -1,6 +1,11 @@
 ## 0.2.0
 
 ### Changed (breaking)
+- `SyniCloudConfig.authToken` (a static `Future<String?> Function()` bearer
+  provider) is replaced by `authHeaders`, a request-aware
+  `Future<Map<String, String>> Function(String method, String url)`. Cloud
+  auth headers are now resolved per request — required for `X-Synheart-Proof`
+  device attestation, which signs the request method and URL.
 - iOS podspec switched from static `.a` + `force_load` to a vendored
   dynamic framework via `prepare_command` symlink. Consumer apps
   install `SyniRuntime.xcframework` via `synheart install syni`; the

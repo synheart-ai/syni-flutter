@@ -38,9 +38,10 @@ class SyniCloudClient {
     required SyniPersona persona,
     Map<String, dynamic>? hsiContext,
   }) async {
+    final url = '${_config.baseUrl}/v1/chat';
     final resp = await _http.post(
-      Uri.parse('${_config.baseUrl}/v1/chat'),
-      headers: await _headers(),
+      Uri.parse(url),
+      headers: await _headers('POST', url),
       body: jsonEncode(_buildRequest(
         message: message,
         persona: persona,
@@ -81,11 +82,9 @@ class SyniCloudClient {
     required SyniPersona persona,
     Map<String, dynamic>? hsiContext,
   }) async* {
-    final req = http.Request(
-      'POST',
-      Uri.parse('${_config.baseUrl}/v1/chat/stream'),
-    );
-    req.headers.addAll(await _headers());
+    final url = '${_config.baseUrl}/v1/chat/stream';
+    final req = http.Request('POST', Uri.parse(url));
+    req.headers.addAll(await _headers('POST', url));
     req.headers['Accept'] = 'text/event-stream';
     req.body = jsonEncode(_buildRequest(
       message: message,
@@ -165,15 +164,14 @@ class SyniCloudClient {
   // Internals
   // ---------------------------------------------------------------------------
 
-  Future<Map<String, String>> _headers() async {
+  Future<Map<String, String>> _headers(String method, String url) async {
     final h = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    final token = await _config.authToken();
-    if (token != null && token.isNotEmpty) {
-      h['Authorization'] = 'Bearer $token';
-    }
+    // Host-supplied auth (e.g. X-Synheart-Proof). Resolved per request — an
+    // attestation proof is signed over the method + URL.
+    h.addAll(await _config.authHeaders(method, url));
     return h;
   }
 
