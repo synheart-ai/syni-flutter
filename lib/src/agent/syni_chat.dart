@@ -100,7 +100,7 @@ class SyniChatResponse {
 
   /// Build a response from a cloud `reply` string.
   ///
-  /// `syni-service`'s non-streaming response is `{reply: "<plain text>", …}`
+  /// The Syni cloud's non-streaming response is `{reply: "<plain text>", …}`
   /// and its SSE `content` chunks are also plain text — there is no tagged
   /// `EngineResponse` envelope on the cloud path. Treat as [SyniResponseKind.chat].
   factory SyniChatResponse.fromCloudReply(

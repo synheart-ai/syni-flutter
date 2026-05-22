@@ -9,7 +9,7 @@ library;
 class SyniCloudConfig {
   const SyniCloudConfig({
     required this.baseUrl,
-    required this.authToken,
+    required this.authHeaders,
     required this.tenantId,
     required this.userId,
     this.projectId = '',
@@ -18,14 +18,20 @@ class SyniCloudConfig {
     this.deviceId = '',
   });
 
-  /// `syni-service` base URL, e.g. `https://api.synheart.ai` or
+  /// Syni cloud base URL, e.g. `https://api.synheart.ai` or
   /// `http://localhost:8093` for dev.
   final String baseUrl;
 
-  /// Async bearer token provider. Returns `null` when no token is available
-  /// (the cloud will fail unauthenticated unless it is in test mode with
-  /// `DISABLE_CHAT_AUTH=true`).
-  final Future<String?> Function() authToken;
+  /// Per-request auth-header provider. Given the HTTP [method] and the
+  /// absolute request [url], returns the headers to attach — e.g.
+  /// `{'X-Synheart-Proof': '<jws>'}` for device-attestation auth.
+  ///
+  /// It is request-aware because an `X-Synheart-Proof` is signed over the
+  /// method and URL and so cannot be a static token. Return an empty map
+  /// when no credential is available (the cloud rejects unauthenticated
+  /// requests unless it is in test mode with `DISABLE_CHAT_AUTH=true`).
+  final Future<Map<String, String>> Function(String method, String url)
+      authHeaders;
 
   final String tenantId;
   final String userId;

@@ -1,3 +1,24 @@
+## 0.2.0
+
+### Changed (breaking)
+- `SyniCloudConfig.authToken` (a static `Future<String?> Function()` bearer
+  provider) is replaced by `authHeaders`, a request-aware
+  `Future<Map<String, String>> Function(String method, String url)`. Cloud
+  auth headers are now resolved per request — required for `X-Synheart-Proof`
+  device attestation, which signs the request method and URL.
+- iOS podspec switched from static `.a` + `force_load` to a vendored
+  dynamic framework via `prepare_command` symlink. Consumer apps
+  install `SyniRuntime.xcframework` via `synheart install syni`; the
+  podspec walks up from `POD_DIR` (or honors `SYNHEART_APP_ROOT`) to
+  find it.
+- `library_loader.dart` uses `DynamicLibrary.process()` on iOS so
+  symbols resolve from the auto-loaded embedded framework (matches the
+  pattern in core-flutter v0.5.0).
+
+### Other
+- `.gitignore` excludes the symlink the podspec creates at pod-install
+  time so it doesn't show up as untracked.
+
 ## 0.1.0
 
 First public release.
