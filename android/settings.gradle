@@ -1,0 +1,6 @@
+rootProject.name = 'syni'
+
+// No native SDK sub-projects. Inference runs in Dart via dart:ffi against
+// libsyni_ffi.so packaged from `android/src/main/jniLibs/<abi>/`. The
+// previous `include ':syni-sdk'` directive (pointing at ../../syni-kotlin)
+// was removed when this package moved to a Dart-FFI-first architecture.
