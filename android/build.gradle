@@ -1,0 +1,69 @@
+group 'com.synheart.syni'
+version '1.0.0'
+
+buildscript {
+    ext.kotlin_version = '1.9.10'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.1.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace 'com.synheart.syni'
+    compileSdk 35
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+
+        // Native libsyni_ffi.so is provisioned INTO THE CONSUMER APP by
+        // `make vendor-app-android` (syni-runtime), landing at
+        // <host-app>/synheart/vendor/syni/android/jniLibs/<abi>/. When this
+        // module builds as a subproject of a Flutter app, rootProject.projectDir
+        // is that app's android/ folder, so parentFile = the app root. This
+        // mirrors how synheart-core-runtime is provisioned.
+        // Override via `syni.runtime.android.jniLibs` in gradle.properties.
+        main.jniLibs.srcDirs += [
+            project.findProperty('syni.runtime.android.jniLibs')
+                ?: new File(rootProject.projectDir.parentFile,
+                    'synheart/vendor/syni/android/jniLibs').absolutePath
+        ]
+    }
+
+    defaultConfig {
+        minSdk 26
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+
+    // No native SDK dependency. Inference runs in Dart via dart:ffi against
+    // libsyni_ffi.so, packaged from `android/src/main/jniLibs/<abi>/`. The
+    // previous `implementation project(':syni-sdk')` line was removed when
+    // this package moved to a Dart-FFI-first architecture.
+}
