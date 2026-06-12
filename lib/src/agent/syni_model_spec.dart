@@ -99,4 +99,26 @@ class SyniModels {
     sha256: '12bf0fff8815d5f73a3c9b586bd8fee8e7b248c935de70dec367679873d0f29d',
     approxBytes: 806058496, // ~770 MB
   );
+
+  /// Qwen2.5 3B Instruct, Q4_K_M quantization. ~2.1 GB. Non-gated on
+  /// Hugging Face (anonymous download works).
+  ///
+  /// Steps up from [qwen25_15bInstructQ4] for hosts that need stronger
+  /// instruction-following / less generic output, at the cost of ~2× the CPU
+  /// inference time and download size. Reports `general.architecture = qwen2`.
+  ///
+  /// LICENSE: the 3B variant is under the **Qwen Research License**
+  /// (non-commercial) — fine for evaluation, NOT for a commercial ship. For
+  /// production prefer an Apache/MIT/permissive model in this size class
+  /// (e.g. Llama-3.2-3B, Phi-3.5-mini, Gemma-2-2B).
+  static const SyniModelSpec qwen25_3bInstructQ4 = SyniModelSpec(
+    id: 'qwen2.5-3b-instruct-q4_k_m',
+    filename: 'qwen2.5-3b-instruct-q4_k_m.gguf',
+    downloadUrl:
+        'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
+    tokenizerUrl:
+        'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/resolve/main/tokenizer.json',
+    sha256: '626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d',
+    approxBytes: 2104932768, // ~2.1 GB
+  );
 }
