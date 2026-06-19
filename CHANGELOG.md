@@ -1,3 +1,12 @@
+## 0.3.4
+
+### Added
+- `SyniModelSpec` for Qwen2.5-3B Instruct (Q4_K_M).
+
+### Fixed
+- Close the cloud HTTP client when the agent is disposed (resource leak in
+  the hybrid local/cloud chat path); value-equality on `SyniCloudConfig`.
+
 ## 0.3.3
 
 ### Changed

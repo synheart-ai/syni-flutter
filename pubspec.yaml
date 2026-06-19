@@ -3,7 +3,7 @@ description: >-
   Flutter SDK for Syni — adaptive on-device LLM inference with hybrid
   local/cloud chat, structured persona conditioning, and a streaming
   chat API designed for the UI thread.
-version: 0.3.3
+version: 0.3.4
 homepage: https://github.com/synheart-ai/syni-flutter
 repository: https://github.com/synheart-ai/syni-flutter
 issue_tracker: https://github.com/synheart-ai/syni-flutter/issues
