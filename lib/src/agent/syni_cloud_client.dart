@@ -29,6 +29,11 @@ class SyniCloudClient {
 
   String? get sessionId => _sessionId;
 
+  /// Releases the underlying HTTP client and its connection pool. Must be
+  /// called when the owning agent is disposed/rebuilt, otherwise each rebuild
+  /// orphans a live keep-alive socket pool.
+  void close() => _http.close();
+
   // ---------------------------------------------------------------------------
   // Non-streaming chat
   // ---------------------------------------------------------------------------

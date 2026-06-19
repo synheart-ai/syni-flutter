@@ -410,6 +410,7 @@ class SyniAgent {
   /// For testing / shutdown. Closes the state stream and disposes the
   /// underlying runtime.
   Future<void> dispose() async {
+    _cloudClient?.close();
     await _runtime.dispose();
     await _state.close();
   }
