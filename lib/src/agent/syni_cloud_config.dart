@@ -39,4 +39,27 @@ class SyniCloudConfig {
   final String orgId;
   final String appId;
   final String deviceId;
+
+  /// Value equality over the identity fields that actually gate cloud routing.
+  ///
+  /// [authHeaders] is intentionally excluded: it is a per-request provider
+  /// closure that the host rebuilds on every wire-up, so comparing it by
+  /// identity would make every freshly-built config look "different" and force
+  /// a needless agent teardown/respawn. When the identity fields below are
+  /// unchanged, the agent does not need rebuilding even if a new closure was
+  /// supplied (the closure resolves a fresh proof per request regardless).
+  @override
+  bool operator ==(Object other) =>
+      other is SyniCloudConfig &&
+      other.baseUrl == baseUrl &&
+      other.tenantId == tenantId &&
+      other.userId == userId &&
+      other.projectId == projectId &&
+      other.orgId == orgId &&
+      other.appId == appId &&
+      other.deviceId == deviceId;
+
+  @override
+  int get hashCode =>
+      Object.hash(baseUrl, tenantId, userId, projectId, orgId, appId, deviceId);
 }
