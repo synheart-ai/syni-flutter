@@ -8,12 +8,37 @@ import 'ffi_bindings.dart';
 import 'isolate_worker.dart';
 
 /// Thrown when the runtime, model, or inference call fails.
+///
+/// When the failure originated from the native runtime's structured failure
+/// envelope (`{"ok":false,"error":{"code","message","retryable"}}`), [code] and
+/// [retryable] carry the machine-readable classification so callers can branch
+/// (e.g. re-authenticate, offer a Retry) instead of pattern-matching [message].
 class SyniRuntimeError implements Exception {
-  SyniRuntimeError(this.message);
+  SyniRuntimeError(this.message, {this.code, this.retryable = false});
+
+  /// Build from a runtime failure envelope's `error` object.
+  factory SyniRuntimeError.fromEnvelope(Map<String, dynamic> error) =>
+      SyniRuntimeError(
+        (error['message'] as String?) ?? 'unknown runtime error',
+        code: error['code'] as String?,
+        retryable: error['retryable'] == true,
+      );
+
+  /// Human-readable, safe to show to users.
   final String message;
 
+  /// Stable machine-readable code (`MODEL_UNAVAILABLE`, `TIMEOUT`,
+  /// `INVALID_ARGUMENT`, …), or null when the error did not come from a runtime
+  /// failure envelope. Treat an unrecognized value as `UNKNOWN`.
+  final String? code;
+
+  /// True only for transient failures the runtime marked retryable
+  /// (`TIMEOUT`, `INVALID_JSON`, `SCHEMA`).
+  final bool retryable;
+
   @override
-  String toString() => 'SyniRuntimeError: $message';
+  String toString() =>
+      'SyniRuntimeError: $message${code != null ? ' ($code)' : ''}';
 }
 
 /// A single inference request.
@@ -42,7 +67,7 @@ class SyniRuntimeRequest {
 
 /// Schema-validated response from the runtime.
 class SyniRuntimeResponse {
-  SyniRuntimeResponse(this.rawJson) : data = jsonDecode(rawJson);
+  SyniRuntimeResponse._(this.rawJson, this.data);
 
   /// Raw JSON string returned by the runtime (already grammar-constrained
   /// and validated against the persona's output schema).
@@ -52,8 +77,24 @@ class SyniRuntimeResponse {
   /// schema (`chat_response`, `coach_response`, `suggestions`, …).
   final dynamic data;
 
-  factory SyniRuntimeResponse.fromJson(String json) =>
-      SyniRuntimeResponse(json);
+  /// Parse a runtime response string.
+  ///
+  /// A success is the bare payload (no `ok` key). A failure is the runtime's
+  /// `{"ok":false,"error":{…}}` envelope — detected here and rethrown as a
+  /// typed [SyniRuntimeError] carrying `code`/`retryable`, so a failure never
+  /// masquerades as a valid (but fieldless) response.
+  factory SyniRuntimeResponse.fromJson(String json) {
+    final decoded = jsonDecode(json);
+    if (decoded is Map && decoded['ok'] == false) {
+      final error = decoded['error'];
+      throw SyniRuntimeError.fromEnvelope(
+        error is Map
+            ? error.cast<String, dynamic>()
+            : const <String, dynamic>{},
+      );
+    }
+    return SyniRuntimeResponse._(json, decoded);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +211,9 @@ class SyniRuntime {
         jsonEncode(request.toJson()),
       );
       return SyniRuntimeResponse.fromJson(raw);
+    } on SyniRuntimeError {
+      // Already typed (e.g. a failure envelope) — preserve code/retryable.
+      rethrow;
     } on Exception catch (e) {
       throw SyniRuntimeError(e.toString());
     }
@@ -196,11 +240,27 @@ class SyniRuntime {
         'Model not loaded. Call loadModel() or downloadModel() first.',
       );
     }
-    yield* _worker!.runStream(
+    await for (final chunk in _worker!.runStream(
       preset.value,
       seed,
       jsonEncode(request.toJson()),
-    );
+    )) {
+      // The final chunk carries the runtime's response JSON, which may be a
+      // `{"ok":false,"error":{…}}` failure envelope. Surface it as a typed
+      // stream error rather than emitting an envelope as if it were content.
+      if (chunk is SyniRuntimeStreamFinal) {
+        final decoded = jsonDecode(chunk.rawJson);
+        if (decoded is Map && decoded['ok'] == false) {
+          final error = decoded['error'];
+          throw SyniRuntimeError.fromEnvelope(
+            error is Map
+                ? error.cast<String, dynamic>()
+                : const <String, dynamic>{},
+          );
+        }
+      }
+      yield chunk;
+    }
   }
 
   /// Free the engine and terminate the worker isolate. The instance can be
