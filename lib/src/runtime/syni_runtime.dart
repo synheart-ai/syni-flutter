@@ -16,13 +16,21 @@ import 'isolate_worker.dart';
 class SyniRuntimeError implements Exception {
   SyniRuntimeError(this.message, {this.code, this.retryable = false});
 
-  /// Build from a runtime failure envelope's `error` object.
+  /// Build from a runtime failure envelope's `error` object. Defensive against
+  /// a malformed envelope: a non-string `message`/`code` becomes null (→ a
+  /// generic message / `UNKNOWN`), and any non-`true` `retryable` is false.
   factory SyniRuntimeError.fromEnvelope(Map<String, dynamic> error) =>
       SyniRuntimeError(
-        (error['message'] as String?) ?? 'unknown runtime error',
-        code: error['code'] as String?,
+        _asString(error['message']) ?? 'unknown runtime error',
+        code: _asString(error['code']) ?? 'UNKNOWN',
         retryable: error['retryable'] == true,
       );
+
+  /// A client-side protocol failure: the native output could not be parsed as
+  /// the documented envelope (malformed JSON, non-object, etc.). Distinct from
+  /// a runtime *domain* failure — never a successful response.
+  factory SyniRuntimeError.protocol(String detail) =>
+      SyniRuntimeError(detail, code: 'MALFORMED_RESPONSE');
 
   /// Human-readable, safe to show to users.
   final String message;
@@ -65,9 +73,20 @@ class SyniRuntimeRequest {
       };
 }
 
+/// Best-effort `String` extraction: returns null for a non-string value rather
+/// than throwing, so a malformed field can't crash envelope parsing.
+String? _asString(dynamic v) => v is String ? v : null;
+
 /// Schema-validated response from the runtime.
 class SyniRuntimeResponse {
-  SyniRuntimeResponse._(this.rawJson, this.data);
+  SyniRuntimeResponse._(
+    this.rawJson,
+    this.data, {
+    this.isFallback = false,
+    this.fallbackReason,
+    this.underlyingErrorCode,
+    this.retryable = false,
+  });
 
   /// Raw JSON string returned by the runtime (already grammar-constrained
   /// and validated against the persona's output schema).
@@ -77,15 +96,51 @@ class SyniRuntimeResponse {
   /// schema (`chat_response`, `coach_response`, `suggestions`, …).
   final dynamic data;
 
+  /// True when the runtime substituted a deterministic fallback for unusable
+  /// model output. Defaults to false — including for an older runtime that
+  /// emits no `meta` (absence ⇒ treated as a genuine answer). Clients must use
+  /// this instead of matching the fallback's English text.
+  final bool isFallback;
+
+  /// Raw reason the model output was rejected (e.g. `timeout`), when
+  /// [isFallback]. Null otherwise.
+  final String? fallbackReason;
+
+  /// Stable code classifying the underlying failure behind a fallback
+  /// (`INVALID_JSON`, `SCHEMA`, `TIMEOUT`, …), when [isFallback]. Null otherwise.
+  final String? underlyingErrorCode;
+
+  /// Whether the underlying failure behind a fallback was transient. False
+  /// when [isFallback] is false.
+  final bool retryable;
+
   /// Parse a runtime response string.
   ///
-  /// A success is the bare payload (no `ok` key). A failure is the runtime's
-  /// `{"ok":false,"error":{…}}` envelope — detected here and rethrown as a
-  /// typed [SyniRuntimeError] carrying `code`/`retryable`, so a failure never
-  /// masquerades as a valid (but fieldless) response.
+  /// - A success is the bare payload (`{"type":…,"data":…}`), optionally with a
+  ///   sibling `meta` object when a fallback was substituted.
+  /// - A failure is the runtime's `{"ok":false,"error":{…}}` envelope —
+  ///   rethrown as a typed [SyniRuntimeError] carrying `code`/`retryable`, so a
+  ///   failure never masquerades as a valid (but fieldless) response.
+  /// - Malformed native output (non-JSON, non-object) becomes a typed
+  ///   [SyniRuntimeError.protocol] rather than a leaked `FormatException` or a
+  ///   silent unknown success.
   factory SyniRuntimeResponse.fromJson(String json) {
-    final decoded = jsonDecode(json);
-    if (decoded is Map && decoded['ok'] == false) {
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(json);
+    } on FormatException catch (e) {
+      throw SyniRuntimeError.protocol('runtime returned malformed JSON: ${e.message}');
+    }
+
+    if (decoded is! Map) {
+      throw SyniRuntimeError.protocol(
+        'runtime returned a non-object response (${decoded.runtimeType})',
+      );
+    }
+
+    // Failure envelope: `ok` explicitly false. A missing/other `ok` is a
+    // success payload (the backward-compatible bare-payload contract).
+    if (decoded['ok'] == false) {
       final error = decoded['error'];
       throw SyniRuntimeError.fromEnvelope(
         error is Map
@@ -93,7 +148,29 @@ class SyniRuntimeResponse {
             : const <String, dynamic>{},
       );
     }
-    return SyniRuntimeResponse._(json, decoded);
+
+    // Optional fallback metadata — present only when the runtime substituted a
+    // fallback. Absent ⇒ genuine answer (or an older runtime).
+    var isFallback = false;
+    String? fallbackReason;
+    String? underlyingErrorCode;
+    var retryable = false;
+    final meta = decoded['meta'];
+    if (meta is Map && meta['fallback_used'] == true) {
+      isFallback = true;
+      fallbackReason = _asString(meta['fallback_reason']);
+      underlyingErrorCode = _asString(meta['error_code']);
+      retryable = meta['retryable'] == true;
+    }
+
+    return SyniRuntimeResponse._(
+      json,
+      decoded,
+      isFallback: isFallback,
+      fallbackReason: fallbackReason,
+      underlyingErrorCode: underlyingErrorCode,
+      retryable: retryable,
+    );
   }
 }
 
