@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'ffi_bindings.dart';
 import 'isolate_worker.dart';
+import 'telemetry.dart';
 
 /// Thrown when the runtime, model, or inference call fails.
 ///
@@ -217,6 +218,17 @@ class SyniRuntime {
   Future<String?> getVersion() async {
     await initialize();
     return _worker!.version();
+  }
+
+  /// Drain the runtime's telemetry ring buffer: recent on-device inference
+  /// metrics, including per-fallback root-cause [SyniFallbackDiagnostics].
+  ///
+  /// Returns an empty list when the engine isn't loaded or nothing has been
+  /// recorded yet. The sensitive diagnostic fields (`prompt` / `rawOutput`) are
+  /// populated only when the runtime ran with `capture_diagnostics` enabled.
+  Future<List<SyniInferenceMetric>> telemetry() async {
+    await initialize();
+    return parseTelemetry(await _worker!.telemetryJson());
   }
 
   /// Load a GGUF model file. Idempotent for the same path; replaces the

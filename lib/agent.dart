@@ -22,3 +22,7 @@ export 'src/agent/syni_spec_persona.dart';
 // [SyniRuntimeError] (carrying the runtime's stable `code` + `retryable`), so
 // it belongs on the agent's public surface alongside [SyniCloudException].
 export 'src/runtime/syni_runtime.dart' show SyniRuntimeError;
+// Telemetry types returned by [SyniAgent.telemetry] — on-device inference
+// metrics + per-fallback root-cause diagnostics.
+export 'src/runtime/telemetry.dart'
+    show SyniInferenceMetric, SyniFallbackDiagnostics, SyniAttemptDiagnostic;
