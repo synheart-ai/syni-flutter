@@ -81,6 +81,10 @@ class _CmdHealthcheck extends _Cmd {
   _CmdHealthcheck(super.reply);
 }
 
+class _CmdTelemetry extends _Cmd {
+  _CmdTelemetry(super.reply);
+}
+
 class _CmdDispose extends _Cmd {
   _CmdDispose(super.reply);
 }
@@ -193,6 +197,11 @@ class SyniRuntimeWorker {
   Future<String?> version() => _send<String?>((reply) => _CmdVersion(reply));
 
   Future<bool> healthcheck() => _send<bool>((reply) => _CmdHealthcheck(reply));
+
+  /// Telemetry snapshot JSON (array of inference metrics), or null when the
+  /// engine isn't loaded / nothing recorded yet.
+  Future<String?> telemetryJson() =>
+      _send<String?>((reply) => _CmdTelemetry(reply));
 
   /// Free the native engine and terminate the worker isolate.
   Future<void> dispose() async {
@@ -309,6 +318,13 @@ class SyniRuntimeWorker {
           case _CmdHealthcheck(:final reply):
             // syni_engine_healthcheck not yet bound; placeholder.
             respond(reply, engine != null);
+
+          case _CmdTelemetry(:final reply):
+            // Null when no engine yet → SyniRuntime maps it to an empty list.
+            respond(
+              reply,
+              engine == null ? null : SyniRuntimeFFI.telemetryJson(engine!),
+            );
 
           case _CmdDispose(:final reply):
             if (engine != null) {

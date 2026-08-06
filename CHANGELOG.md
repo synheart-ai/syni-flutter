@@ -1,3 +1,14 @@
+## 0.3.5
+
+### Added
+- Fallback metadata on `SyniChatResponse` / `SyniRuntimeResponse`:
+  `isFallback`, `fallbackReason`, `underlyingErrorCode`, `retryable`.
+- `SyniRuntimeError` now carries stable `code` + `retryable` (exported from
+  `package:syni/agent.dart`).
+- `SyniAgent.telemetry()` — drain on-device inference metrics / fallback
+  diagnostics (`SyniInferenceMetric`, `SyniFallbackDiagnostics`,
+  `SyniAttemptDiagnostic`).
+
 ## 0.3.4
 
 ### Added
