@@ -94,7 +94,8 @@ class SyniFallbackDiagnostics {
     final attempts = raw is List
         ? raw
             .whereType<Map>()
-            .map((a) => SyniAttemptDiagnostic.fromMap(a.cast<String, dynamic>()))
+            .map(
+                (a) => SyniAttemptDiagnostic.fromMap(a.cast<String, dynamic>()))
             .toList()
         : const <SyniAttemptDiagnostic>[];
     return SyniFallbackDiagnostics(

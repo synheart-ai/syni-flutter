@@ -52,7 +52,8 @@ void main() {
     test('missing error object → UNKNOWN, still typed', () {
       expect(
         () => SyniRuntimeResponse.fromJson('{"ok":false}'),
-        throwsA(isA<SyniRuntimeError>().having((e) => e.code, 'code', 'UNKNOWN')),
+        throwsA(
+            isA<SyniRuntimeError>().having((e) => e.code, 'code', 'UNKNOWN')),
       );
     });
 
@@ -62,7 +63,8 @@ void main() {
           '{"ok":false,"error":{"code":"BACKEND","message":"x","retryable":"yes"}}',
         ),
         throwsA(
-          isA<SyniRuntimeError>().having((e) => e.retryable, 'retryable', isFalse),
+          isA<SyniRuntimeError>()
+              .having((e) => e.retryable, 'retryable', isFalse),
         ),
       );
     });

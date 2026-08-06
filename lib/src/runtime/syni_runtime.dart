@@ -130,7 +130,8 @@ class SyniRuntimeResponse {
     try {
       decoded = jsonDecode(json);
     } on FormatException catch (e) {
-      throw SyniRuntimeError.protocol('runtime returned malformed JSON: ${e.message}');
+      throw SyniRuntimeError.protocol(
+          'runtime returned malformed JSON: ${e.message}');
     }
 
     if (decoded is! Map) {

@@ -6,9 +6,11 @@ void main() {
   const version = '0.4.0';
 
   SyniChatResponse fromRuntime(String json) =>
-      SyniChatResponse.fromRuntimeJson(json, personaId: persona, runtimeVersion: version);
+      SyniChatResponse.fromRuntimeJson(json,
+          personaId: persona, runtimeVersion: version);
   SyniChatResponse fromCloud(String reply) =>
-      SyniChatResponse.fromCloudReply(reply, personaId: persona, runtimeVersion: version);
+      SyniChatResponse.fromCloudReply(reply,
+          personaId: persona, runtimeVersion: version);
 
   group('fromRuntimeJson fallback metadata', () {
     test('genuine answer → not a fallback', () {
@@ -39,7 +41,8 @@ void main() {
     });
 
     test('coach JSON extracts response + suggested_action', () {
-      final r = fromCloud('{"response":"You paced yourself well.","suggested_action":"Note it."}');
+      final r = fromCloud(
+          '{"response":"You paced yourself well.","suggested_action":"Note it."}');
       expect(r.kind, SyniResponseKind.coach);
       expect(r.message, 'You paced yourself well.');
       expect(r.suggestions, ['Note it.']);
