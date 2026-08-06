@@ -179,15 +179,24 @@ class SyniChatResponse {
     String? message;
     final suggestions = <String>[];
 
-    // Strip a whole-reply ```` ``` ```` fence, if any, then decide whether the
-    // reply is a documented structured object or a plain-text chat reply.
-    final unfenced = _stripCodeFence(reply.trim());
-    final looksStructured = unfenced.startsWith('{');
+    // Strip a whole-reply ```` ``` ```` fence, if any. Cloud models sometimes
+    // add a short preamble before a fenced/documented JSON response, so also
+    // look for an object inside the surrounding text.
+    final trimmed = reply.trim();
+    final unfenced = _stripCodeFence(trimmed);
+    final firstBrace = unfenced.indexOf('{');
+    final lastBrace = unfenced.lastIndexOf('}');
+    final hasObjectCandidate = firstBrace >= 0 && lastBrace > firstBrace;
+    final looksStructured = unfenced.startsWith('{') ||
+        trimmed.contains('```') ||
+        hasObjectCandidate;
 
     Map? obj;
-    if (looksStructured && unfenced.endsWith('}')) {
+    if (hasObjectCandidate) {
       try {
-        final decoded = jsonDecode(unfenced);
+        final decoded = jsonDecode(
+          unfenced.substring(firstBrace, lastBrace + 1),
+        );
         if (decoded is Map) obj = decoded;
       } catch (_) {/* not valid JSON after all */}
     }

@@ -53,6 +53,18 @@ void main() {
       expect(r.message, 'Nice work.');
     });
 
+    test('preamble before fenced coach JSON is not displayed', () {
+      final r = fromCloud(
+        'Here is the answer:\n'
+        '```json\n'
+        '{"response":"You seem more focused today."}\n'
+        '```',
+      );
+      expect(r.message, 'You seem more focused today.');
+      expect(r.displayText, isNot(contains('Here is the answer')));
+      expect(r.displayText, isNot(contains('{"response"')));
+    });
+
     test('message schema supports object-shaped suggestions', () {
       final r = fromCloud(
         '{"message":"ok","suggestions":[{"text":"a"},"b",{"nope":1}]}',
