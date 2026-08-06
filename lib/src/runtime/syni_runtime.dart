@@ -6,14 +6,48 @@ import 'package:path_provider/path_provider.dart';
 
 import 'ffi_bindings.dart';
 import 'isolate_worker.dart';
+import 'telemetry.dart';
 
 /// Thrown when the runtime, model, or inference call fails.
+///
+/// When the failure originated from the native runtime's structured failure
+/// envelope (`{"ok":false,"error":{"code","message","retryable"}}`), [code] and
+/// [retryable] carry the machine-readable classification so callers can branch
+/// (e.g. re-authenticate, offer a Retry) instead of pattern-matching [message].
 class SyniRuntimeError implements Exception {
-  SyniRuntimeError(this.message);
+  SyniRuntimeError(this.message, {this.code, this.retryable = false});
+
+  /// Build from a runtime failure envelope's `error` object. Defensive against
+  /// a malformed envelope: a non-string `message`/`code` becomes null (→ a
+  /// generic message / `UNKNOWN`), and any non-`true` `retryable` is false.
+  factory SyniRuntimeError.fromEnvelope(Map<String, dynamic> error) =>
+      SyniRuntimeError(
+        _asString(error['message']) ?? 'unknown runtime error',
+        code: _asString(error['code']) ?? 'UNKNOWN',
+        retryable: error['retryable'] == true,
+      );
+
+  /// A client-side protocol failure: the native output could not be parsed as
+  /// the documented envelope (malformed JSON, non-object, etc.). Distinct from
+  /// a runtime *domain* failure — never a successful response.
+  factory SyniRuntimeError.protocol(String detail) =>
+      SyniRuntimeError(detail, code: 'MALFORMED_RESPONSE');
+
+  /// Human-readable, safe to show to users.
   final String message;
 
+  /// Stable machine-readable code (`MODEL_UNAVAILABLE`, `TIMEOUT`,
+  /// `INVALID_ARGUMENT`, …), or null when the error did not come from a runtime
+  /// failure envelope. Treat an unrecognized value as `UNKNOWN`.
+  final String? code;
+
+  /// True only for transient failures the runtime marked retryable
+  /// (`TIMEOUT`, `INVALID_JSON`, `SCHEMA`).
+  final bool retryable;
+
   @override
-  String toString() => 'SyniRuntimeError: $message';
+  String toString() =>
+      'SyniRuntimeError: $message${code != null ? ' ($code)' : ''}';
 }
 
 /// A single inference request.
@@ -40,9 +74,20 @@ class SyniRuntimeRequest {
       };
 }
 
+/// Best-effort `String` extraction: returns null for a non-string value rather
+/// than throwing, so a malformed field can't crash envelope parsing.
+String? _asString(dynamic v) => v is String ? v : null;
+
 /// Schema-validated response from the runtime.
 class SyniRuntimeResponse {
-  SyniRuntimeResponse(this.rawJson) : data = jsonDecode(rawJson);
+  SyniRuntimeResponse._(
+    this.rawJson,
+    this.data, {
+    this.isFallback = false,
+    this.fallbackReason,
+    this.underlyingErrorCode,
+    this.retryable = false,
+  });
 
   /// Raw JSON string returned by the runtime (already grammar-constrained
   /// and validated against the persona's output schema).
@@ -52,8 +97,83 @@ class SyniRuntimeResponse {
   /// schema (`chat_response`, `coach_response`, `suggestions`, …).
   final dynamic data;
 
-  factory SyniRuntimeResponse.fromJson(String json) =>
-      SyniRuntimeResponse(json);
+  /// True when the runtime substituted a deterministic fallback for unusable
+  /// model output. Defaults to false — including for an older runtime that
+  /// emits no `meta` (absence ⇒ treated as a genuine answer). Clients must use
+  /// this instead of matching the fallback's English text.
+  final bool isFallback;
+
+  /// Raw reason the model output was rejected (e.g. `timeout`), when
+  /// [isFallback]. Null otherwise.
+  final String? fallbackReason;
+
+  /// Stable code classifying the underlying failure behind a fallback
+  /// (`INVALID_JSON`, `SCHEMA`, `TIMEOUT`, …), when [isFallback]. Null otherwise.
+  final String? underlyingErrorCode;
+
+  /// Whether the underlying failure behind a fallback was transient. False
+  /// when [isFallback] is false.
+  final bool retryable;
+
+  /// Parse a runtime response string.
+  ///
+  /// - A success is the bare payload (`{"type":…,"data":…}`), optionally with a
+  ///   sibling `meta` object when a fallback was substituted.
+  /// - A failure is the runtime's `{"ok":false,"error":{…}}` envelope —
+  ///   rethrown as a typed [SyniRuntimeError] carrying `code`/`retryable`, so a
+  ///   failure never masquerades as a valid (but fieldless) response.
+  /// - Malformed native output (non-JSON, non-object) becomes a typed
+  ///   [SyniRuntimeError.protocol] rather than a leaked `FormatException` or a
+  ///   silent unknown success.
+  factory SyniRuntimeResponse.fromJson(String json) {
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(json);
+    } on FormatException catch (e) {
+      throw SyniRuntimeError.protocol(
+          'runtime returned malformed JSON: ${e.message}');
+    }
+
+    if (decoded is! Map) {
+      throw SyniRuntimeError.protocol(
+        'runtime returned a non-object response (${decoded.runtimeType})',
+      );
+    }
+
+    // Failure envelope: `ok` explicitly false. A missing/other `ok` is a
+    // success payload (the backward-compatible bare-payload contract).
+    if (decoded['ok'] == false) {
+      final error = decoded['error'];
+      throw SyniRuntimeError.fromEnvelope(
+        error is Map
+            ? error.cast<String, dynamic>()
+            : const <String, dynamic>{},
+      );
+    }
+
+    // Optional fallback metadata — present only when the runtime substituted a
+    // fallback. Absent ⇒ genuine answer (or an older runtime).
+    var isFallback = false;
+    String? fallbackReason;
+    String? underlyingErrorCode;
+    var retryable = false;
+    final meta = decoded['meta'];
+    if (meta is Map && meta['fallback_used'] == true) {
+      isFallback = true;
+      fallbackReason = _asString(meta['fallback_reason']);
+      underlyingErrorCode = _asString(meta['error_code']);
+      retryable = meta['retryable'] == true;
+    }
+
+    return SyniRuntimeResponse._(
+      json,
+      decoded,
+      isFallback: isFallback,
+      fallbackReason: fallbackReason,
+      underlyingErrorCode: underlyingErrorCode,
+      retryable: retryable,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +219,17 @@ class SyniRuntime {
   Future<String?> getVersion() async {
     await initialize();
     return _worker!.version();
+  }
+
+  /// Drain the runtime's telemetry ring buffer: recent on-device inference
+  /// metrics, including per-fallback root-cause [SyniFallbackDiagnostics].
+  ///
+  /// Returns an empty list when the engine isn't loaded or nothing has been
+  /// recorded yet. The sensitive diagnostic fields (`prompt` / `rawOutput`) are
+  /// populated only when the runtime ran with `capture_diagnostics` enabled.
+  Future<List<SyniInferenceMetric>> telemetry() async {
+    await initialize();
+    return parseTelemetry(await _worker!.telemetryJson());
   }
 
   /// Load a GGUF model file. Idempotent for the same path; replaces the
@@ -170,6 +301,9 @@ class SyniRuntime {
         jsonEncode(request.toJson()),
       );
       return SyniRuntimeResponse.fromJson(raw);
+    } on SyniRuntimeError {
+      // Already typed (e.g. a failure envelope) — preserve code/retryable.
+      rethrow;
     } on Exception catch (e) {
       throw SyniRuntimeError(e.toString());
     }
@@ -196,11 +330,27 @@ class SyniRuntime {
         'Model not loaded. Call loadModel() or downloadModel() first.',
       );
     }
-    yield* _worker!.runStream(
+    await for (final chunk in _worker!.runStream(
       preset.value,
       seed,
       jsonEncode(request.toJson()),
-    );
+    )) {
+      // The final chunk carries the runtime's response JSON, which may be a
+      // `{"ok":false,"error":{…}}` failure envelope. Surface it as a typed
+      // stream error rather than emitting an envelope as if it were content.
+      if (chunk is SyniRuntimeStreamFinal) {
+        final decoded = jsonDecode(chunk.rawJson);
+        if (decoded is Map && decoded['ok'] == false) {
+          final error = decoded['error'];
+          throw SyniRuntimeError.fromEnvelope(
+            error is Map
+                ? error.cast<String, dynamic>()
+                : const <String, dynamic>{},
+          );
+        }
+      }
+      yield chunk;
+    }
   }
 
   /// Free the engine and terminate the worker isolate. The instance can be

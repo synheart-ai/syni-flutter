@@ -18,3 +18,11 @@ export 'src/agent/syni_model_catalog.dart';
 export 'src/agent/syni_model_spec.dart';
 export 'src/agent/syni_persona.dart';
 export 'src/agent/syni_spec_persona.dart';
+// The agent's chat/stream calls surface local-runtime failures as
+// [SyniRuntimeError] (carrying the runtime's stable `code` + `retryable`), so
+// it belongs on the agent's public surface alongside [SyniCloudException].
+export 'src/runtime/syni_runtime.dart' show SyniRuntimeError;
+// Telemetry types returned by [SyniAgent.telemetry] — on-device inference
+// metrics + per-fallback root-cause diagnostics.
+export 'src/runtime/telemetry.dart'
+    show SyniInferenceMetric, SyniFallbackDiagnostics, SyniAttemptDiagnostic;

@@ -61,6 +61,12 @@ class SyniAgent {
   /// True iff [currentState] is [SyniInstalled].
   bool get isInstalled => _state.value is SyniInstalled;
 
+  /// Recent on-device inference metrics, including per-fallback root-cause
+  /// diagnostics ([SyniFallbackDiagnostics]). Drained from the runtime's
+  /// telemetry ring buffer. Empty when the engine isn't loaded or nothing has
+  /// run yet. Cloud turns are not recorded here — this is the on-device engine.
+  Future<List<rt.SyniInferenceMetric>> telemetry() => _runtime.telemetry();
+
   // -------------------------------------------------------------------------
   // Install / uninstall
   // -------------------------------------------------------------------------

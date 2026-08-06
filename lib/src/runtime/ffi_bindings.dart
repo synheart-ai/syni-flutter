@@ -39,6 +39,7 @@ typedef _SyniEngineRunJsonC = Pointer<Utf8> Function(
   Pointer<Utf8>,
 );
 typedef _SyniVersionC = Pointer<Utf8> Function();
+typedef _SyniTelemetryJsonC = Pointer<Utf8> Function(Pointer<Void>);
 
 // Streaming: callback returns false to stop early, true to continue.
 typedef _SyniStreamCallbackC = Bool Function(Pointer<Utf8>, Pointer<Void>);
@@ -65,6 +66,7 @@ typedef _SyniEngineRunJsonDart = Pointer<Utf8> Function(
   Pointer<Utf8>,
 );
 typedef _SyniVersionDart = Pointer<Utf8> Function();
+typedef _SyniTelemetryJsonDart = Pointer<Utf8> Function(Pointer<Void>);
 
 typedef _SyniEngineRunStreamJsonDart = Pointer<Utf8> Function(
   Pointer<Void>,
@@ -101,6 +103,7 @@ class SyniRuntimeFFI {
   static _SyniEngineRunJsonDart? _engineRunJson;
   static _SyniEngineRunStreamJsonDart? _engineRunStreamJson;
   static _SyniVersionDart? _version;
+  static _SyniTelemetryJsonDart? _telemetryJson;
 
   /// Force-load the native library and resolve function pointers.
   ///
@@ -131,6 +134,9 @@ class SyniRuntimeFFI {
         _SyniEngineRunStreamJsonDart>('syni_engine_run_stream_json');
     _version =
         lib.lookupFunction<_SyniVersionC, _SyniVersionDart>('syni_version');
+    _telemetryJson =
+        lib.lookupFunction<_SyniTelemetryJsonC, _SyniTelemetryJsonDart>(
+            'syni_telemetry_json');
   }
 
   // -------------------------------------------------------------------------
@@ -252,6 +258,18 @@ class SyniRuntimeFFI {
   static String? version() {
     initialize();
     final ptr = _version!();
+    if (ptr == nullptr) return null;
+    final s = ptr.cast<Utf8>().toDartString();
+    _stringFree!(ptr);
+    return s;
+  }
+
+  /// Telemetry snapshot as a JSON array of inference metrics (each optionally
+  /// carrying fallback `diagnostics`). Returns `null` when the engine handle is
+  /// invalid or nothing has been recorded. The native buffer is freed here.
+  static String? telemetryJson(SyniEngineNative engine) {
+    initialize();
+    final ptr = _telemetryJson!(engine);
     if (ptr == nullptr) return null;
     final s = ptr.cast<Utf8>().toDartString();
     _stringFree!(ptr);
