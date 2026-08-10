@@ -91,11 +91,11 @@ class SyniChatResponse {
           switch (decoded['type']) {
             case 'coach':
               kind = SyniResponseKind.coach;
-              message = data['message']?.toString();
+              message = _normalizeDisplayMessage(_str(data['message']));
               suggestions.addAll(_suggestionTexts(data['suggestions']));
             case 'chat':
               kind = SyniResponseKind.chat;
-              message = data['message']?.toString();
+              message = _normalizeDisplayMessage(_str(data['message']));
             case 'suggestions':
               kind = SyniResponseKind.suggestions;
               suggestions.addAll(_suggestionTexts(data['suggestions']));
@@ -162,6 +162,89 @@ class SyniChatResponse {
     return t.trim();
   }
 
+  /// Return the contents of one complete outer code fence, or null when the
+  /// reply contains a partial fence or surrounding text.
+  static String? _wholeCodeFenceContent(String reply) {
+    final trimmed = reply.trim();
+    if (!trimmed.startsWith('```') || !trimmed.endsWith('```')) return null;
+    final openingLineEnd = trimmed.indexOf('\n');
+    if (openingLineEnd < 0 || openingLineEnd >= trimmed.length - 3) return null;
+    return trimmed.substring(openingLineEnd + 1, trimmed.length - 3).trim();
+  }
+
+  /// Decode a JSON object from a whole structured reply, a fenced reply, or a
+  /// short preamble followed by an object. Returns null when no valid object is
+  /// present.
+  static Map? _structuredReplyObject(String reply) {
+    final trimmed = reply.trim();
+    final unfenced = _stripCodeFence(trimmed);
+    final firstBrace = unfenced.indexOf('{');
+    final lastBrace = unfenced.lastIndexOf('}');
+    if (firstBrace < 0 || lastBrace <= firstBrace) return null;
+
+    try {
+      final decoded = jsonDecode(
+        unfenced.substring(firstBrace, lastBrace + 1),
+      );
+      return decoded is Map ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Whether [reply] looks like structured output that must never be rendered
+  /// literally when parsing fails or its shape is unknown.
+  static bool _looksStructuredReply(String reply) {
+    final trimmed = reply.trim();
+    final unfenced = _stripCodeFence(trimmed);
+    final firstBrace = unfenced.indexOf('{');
+    final lastBrace = unfenced.lastIndexOf('}');
+    return unfenced.startsWith('{') ||
+        unfenced.startsWith('[') ||
+        trimmed.contains('```') ||
+        (firstBrace >= 0 && lastBrace > firstBrace);
+  }
+
+  /// Extract the first documented human-readable field from a structured
+  /// model reply. Containers may be nested because small local models
+  /// sometimes emit `{ "response": { "details": "..." } }` even though the
+  /// runtime's outer `data.message` field is already a string.
+  static String? _structuredDisplayText(dynamic value, [int depth = 0]) {
+    if (depth > 6) return null;
+    if (value is String) return value.trim().isEmpty ? null : value;
+    if (value is! Map) return null;
+
+    const displayKeys = ['message', 'details', 'summary', 'answer', 'text'];
+    for (final key in displayKeys) {
+      final extracted = _structuredDisplayText(value[key], depth + 1);
+      if (extracted != null) return extracted;
+    }
+
+    const containerKeys = ['response', 'data', 'result'];
+    for (final key in containerKeys) {
+      final extracted = _structuredDisplayText(value[key], depth + 1);
+      if (extracted != null) return extracted;
+    }
+
+    return null;
+  }
+
+  /// Normalize a message that is supposed to be display text. Plain prose is
+  /// preserved. Recognized JSON is reduced to its display field; malformed or
+  /// unknown structured output becomes null instead of leaking into the UI.
+  static String? _normalizeDisplayMessage(String? message) {
+    if (message == null || message.trim().isEmpty) return null;
+    final object = _structuredReplyObject(message);
+    if (object != null) return _structuredDisplayText(object);
+
+    final fenced = _wholeCodeFenceContent(message);
+    if (fenced != null && !_looksStructuredReply(fenced)) {
+      return fenced.isEmpty ? null : fenced;
+    }
+
+    return _looksStructuredReply(message) ? null : message;
+  }
+
   /// Build a response from a cloud `reply` string.
   ///
   /// The cloud's reply may be plain text (chat schema) or a structured-output
@@ -179,27 +262,9 @@ class SyniChatResponse {
     String? message;
     final suggestions = <String>[];
 
-    // Strip a whole-reply ```` ``` ```` fence, if any. Cloud models sometimes
-    // add a short preamble before a fenced/documented JSON response, so also
-    // look for an object inside the surrounding text.
-    final trimmed = reply.trim();
-    final unfenced = _stripCodeFence(trimmed);
-    final firstBrace = unfenced.indexOf('{');
-    final lastBrace = unfenced.lastIndexOf('}');
-    final hasObjectCandidate = firstBrace >= 0 && lastBrace > firstBrace;
-    final looksStructured = unfenced.startsWith('{') ||
-        trimmed.contains('```') ||
-        hasObjectCandidate;
-
-    Map? obj;
-    if (hasObjectCandidate) {
-      try {
-        final decoded = jsonDecode(
-          unfenced.substring(firstBrace, lastBrace + 1),
-        );
-        if (decoded is Map) obj = decoded;
-      } catch (_) {/* not valid JSON after all */}
-    }
+    // Cloud and runtime messages share the same structured-output detection so
+    // neither route can accidentally expose JSON-shaped model output.
+    final obj = _structuredReplyObject(reply);
 
     if (obj != null) {
       // Extract ONLY documented display fields. An unknown structured shape
@@ -217,14 +282,18 @@ class SyniChatResponse {
         if (m != null && m.isNotEmpty) {
           message = m;
           suggestions.addAll(_cloudSuggestions(obj['suggestions']));
+        } else {
+          // Tolerate nested display fields produced by smaller models while
+          // still refusing arbitrary/unknown JSON objects.
+          message = _structuredDisplayText(obj);
         }
       }
     } else {
       // No JSON object. If it merely *looked* structured (a leading `{` that
       // didn't parse), treat it as unknown output and leave the message empty
-      // rather than echoing JSON-ish text; otherwise it's a genuine plain-text
-      // chat reply.
-      if (!looksStructured) message = reply;
+      // rather than echoing JSON-ish text. A complete fence containing only
+      // prose is safe to unwrap; all other plain text is preserved verbatim.
+      message = _normalizeDisplayMessage(reply);
     }
 
     return SyniChatResponse._(

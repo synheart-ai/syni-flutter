@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syni/agent.dart';
 
@@ -33,6 +35,78 @@ void main() {
     });
   });
 
+  group('fromRuntimeJson — never leaks structured message text', () {
+    test('fenced nested response details are unwrapped', () {
+      final raw = jsonEncode({
+        'type': 'chat',
+        'data': {
+          'message': '''```json
+{"response":{"status":"calibration","details":"This was a short calibration session in Synheart Life."}}
+```''',
+        },
+      });
+
+      final r = fromRuntime(raw);
+      expect(
+          r.message, 'This was a short calibration session in Synheart Life.');
+      expect(r.displayText, isNot(contains('```')));
+      expect(r.displayText, isNot(contains('{"response"')));
+      expect(r.rawJson, raw);
+    });
+
+    test('known nested display fields are extracted', () {
+      final r = fromRuntime(jsonEncode({
+        'type': 'chat',
+        'data': {
+          'message': '{"data":{"summary":"This session lasted five minutes."}}',
+        },
+      }));
+
+      expect(r.message, 'This session lasted five minutes.');
+    });
+
+    test('plain prose inside a whole code fence is unwrapped', () {
+      final r = fromRuntime(jsonEncode({
+        'type': 'chat',
+        'data': {
+          'message': '''```
+This calibration established a baseline for later readings.
+```''',
+        },
+      }));
+
+      expect(
+        r.message,
+        'This calibration established a baseline for later readings.',
+      );
+      expect(r.displayText, isNot(contains('```')));
+    });
+
+    test('malformed structured messages are not displayed', () {
+      final r = fromRuntime(jsonEncode({
+        'type': 'chat',
+        'data': {
+          'message': '```json\n{"response":{"details":"unfinished"}\n```',
+        },
+      }));
+
+      expect(r.message, isNull);
+      expect(r.displayText, isNot(contains('unfinished')));
+    });
+
+    test('unknown structured messages are not displayed', () {
+      final r = fromRuntime(jsonEncode({
+        'type': 'chat',
+        'data': {
+          'message': '{"response":{"status":"calibration"}}',
+        },
+      }));
+
+      expect(r.message, isNull);
+      expect(r.displayText, isNot(contains('calibration')));
+    });
+  });
+
   group('fromCloudReply — never leaks raw JSON', () {
     test('plain text reply is used verbatim', () {
       final r = fromCloud('Here is a gentle reflection.');
@@ -51,6 +125,18 @@ void main() {
     test('fenced coach JSON is unwrapped', () {
       final r = fromCloud('```json\n{"response":"Nice work."}\n```');
       expect(r.message, 'Nice work.');
+    });
+
+    test('plain prose inside a whole code fence is unwrapped', () {
+      final r = fromCloud('''```text
+This calibration established a baseline for later readings.
+```''');
+
+      expect(
+        r.message,
+        'This calibration established a baseline for later readings.',
+      );
+      expect(r.displayText, isNot(contains('```')));
     });
 
     test('preamble before fenced coach JSON is not displayed', () {
