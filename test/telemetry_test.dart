@@ -13,12 +13,22 @@ void main() {
     test('genuine success metric has no diagnostics', () {
       final m = parseTelemetry(
         '[{"started_at_unix_ms":1,"duration_ms":12,"preset":"chat",'
-        '"success":true,"schema_valid":true,"retries":0,"fallback_used":false}]',
+        '"success":true,"schema_valid":true,"retries":0,"fallback_used":false,'
+        '"request_id":"turn-123"}]',
       );
       expect(m, hasLength(1));
       expect(m.first.fallbackUsed, isFalse);
       expect(m.first.preset, 'chat');
+      expect(m.first.requestId, 'turn-123');
       expect(m.first.diagnostics, isNull);
+    });
+
+    test('legacy metric has no request ID', () {
+      final m = parseTelemetry(
+        '[{"started_at_unix_ms":1,"duration_ms":12,"preset":"chat",'
+        '"success":true,"schema_valid":true,"retries":0,"fallback_used":false}]',
+      );
+      expect(m.single.requestId, isNull);
     });
 
     test('fallback metric parses per-attempt diagnostics', () {
