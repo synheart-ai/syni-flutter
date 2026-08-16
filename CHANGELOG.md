@@ -1,3 +1,20 @@
+## 0.3.6
+
+### Added
+
+- `SyniAgent.turn()` for structured on-device conversations.
+- Typed turn contracts: `SyniTurnRequest`, `SyniTurnMessage`,
+  `SyniTaskContract`, `SyniGenerationProfile`, and `SyniTurnResult`.
+- Runtime API 2.0 capability negotiation.
+- Request IDs, Runtime provenance, and structured generation controls.
+
+### Changed
+
+- Preserve user and assistant roles instead of flattening conversations into
+  one prompt.
+- Expose request identity through on-device telemetry.
+- Keep existing chat APIs backward compatible.
+
 ## 0.3.5
 
 ### Added
