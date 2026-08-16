@@ -50,6 +50,63 @@ class SyniRuntimeError implements Exception {
       'SyniRuntimeError: $message${code != null ? ' ($code)' : ''}';
 }
 
+enum SyniRuntimeMessageRole { user, assistant }
+
+/// One prior dialogue turn. System authority is carried separately by
+/// [SyniRuntimeRequest.system] so dialogue can never silently become policy.
+class SyniRuntimeMessage {
+  const SyniRuntimeMessage({required this.role, required this.content});
+
+  final SyniRuntimeMessageRole role;
+  final String content;
+
+  Map<String, dynamic> toJson() => {
+        'role': role.name,
+        'content': content,
+      };
+}
+
+/// Per-turn native generation controls. All fields are optional; absence keeps
+/// the runtime's tuned preset defaults.
+class SyniRuntimeGenerationConfig {
+  const SyniRuntimeGenerationConfig({
+    this.maxTokens,
+    this.ttftTimeoutMs,
+    this.seed,
+    this.temperature,
+    this.topK,
+    this.topP,
+    this.minP,
+    this.penaltyRepeat,
+    this.penaltyFreq,
+    this.dryMultiplier,
+  });
+
+  final int? maxTokens;
+  final int? ttftTimeoutMs;
+  final int? seed;
+  final double? temperature;
+  final int? topK;
+  final double? topP;
+  final double? minP;
+  final double? penaltyRepeat;
+  final double? penaltyFreq;
+  final double? dryMultiplier;
+
+  Map<String, dynamic> toJson() => {
+        if (maxTokens != null) 'max_tokens': maxTokens,
+        if (ttftTimeoutMs != null) 'ttft_timeout_ms': ttftTimeoutMs,
+        if (seed != null) 'seed': seed,
+        if (temperature != null) 'temperature': temperature,
+        if (topK != null) 'top_k': topK,
+        if (topP != null) 'top_p': topP,
+        if (minP != null) 'min_p': minP,
+        if (penaltyRepeat != null) 'penalty_repeat': penaltyRepeat,
+        if (penaltyFreq != null) 'penalty_freq': penaltyFreq,
+        if (dryMultiplier != null) 'dry_multiplier': dryMultiplier,
+      };
+}
+
 /// A single inference request.
 ///
 /// [hsi] is an opaque conditioning payload — the runtime's `PromptBuilder`
@@ -59,19 +116,128 @@ class SyniRuntimeError implements Exception {
 class SyniRuntimeRequest {
   const SyniRuntimeRequest({
     required this.instruction,
+    this.apiVersion,
+    this.requestId,
     this.hsi,
     this.schema,
+    this.system,
+    this.messages = const [],
+    this.generation,
   });
 
   final String instruction;
+  final String? apiVersion;
+  final String? requestId;
   final Map<String, dynamic>? hsi;
   final String? schema;
+  final String? system;
+  final List<SyniRuntimeMessage> messages;
+  final SyniRuntimeGenerationConfig? generation;
 
   Map<String, dynamic> toJson() => {
+        if (apiVersion != null) 'api_version': apiVersion,
+        if (requestId != null) 'request_id': requestId,
         'instruction': instruction,
         if (hsi != null) 'hsi': hsi,
         if (schema != null) 'schema': schema,
+        if (system != null) 'system': system,
+        if (messages.isNotEmpty)
+          'messages': messages.map((message) => message.toJson()).toList(),
+        if (generation != null) 'generation': generation!.toJson(),
       };
+}
+
+class SyniRuntimeProvenance {
+  const SyniRuntimeProvenance({
+    required this.backend,
+    required this.accelerator,
+    required this.runtimeVersion,
+    this.modelId,
+  });
+
+  final String backend;
+  final String accelerator;
+  final String runtimeVersion;
+  final String? modelId;
+
+  factory SyniRuntimeProvenance.fromMap(Map<dynamic, dynamic> map) =>
+      SyniRuntimeProvenance(
+        backend: _asString(map['backend']) ?? 'unknown',
+        accelerator: _asString(map['accelerator']) ?? 'unknown',
+        runtimeVersion: _asString(map['runtime_version']) ?? 'unknown',
+        modelId: _asString(map['model_id']),
+      );
+}
+
+class SyniRuntimeCapabilities {
+  const SyniRuntimeCapabilities({
+    required this.apiVersions,
+    required this.backend,
+    required this.accelerator,
+    required this.supportsSystemRole,
+    required this.generationControls,
+    required this.supportsStructuredDecoding,
+    required this.supportsStreaming,
+    required this.streamsDisplayText,
+    required this.supportsProvenance,
+    required this.isLegacy,
+  });
+
+  final List<String> apiVersions;
+  final String backend;
+  final String accelerator;
+  final bool supportsSystemRole;
+  final Set<String> generationControls;
+  final bool supportsStructuredDecoding;
+  final bool supportsStreaming;
+  final bool streamsDisplayText;
+  final bool supportsProvenance;
+  final bool isLegacy;
+
+  factory SyniRuntimeCapabilities.fromJson(String json) {
+    final decoded = jsonDecode(json);
+    if (decoded is! Map) {
+      throw SyniRuntimeError.protocol(
+          'runtime capabilities were not an object');
+    }
+    final versions = decoded['api_versions'];
+    final roles = decoded['roles'];
+    final generation = decoded['generation'];
+    final streaming = decoded['streaming'];
+    return SyniRuntimeCapabilities(
+      apiVersions: versions is List
+          ? versions.whereType<String>().toList(growable: false)
+          : const [],
+      backend: _asString(decoded['backend']) ?? 'unknown',
+      accelerator: _asString(decoded['accelerator']) ?? 'unknown',
+      supportsSystemRole: roles is Map && roles['system'] == true,
+      generationControls: generation is Map
+          ? generation.entries
+              .where((entry) => entry.value == true)
+              .map((entry) => entry.key.toString())
+              .toSet()
+          : const {},
+      supportsStructuredDecoding: decoded['structured_decoding'] == true,
+      supportsStreaming: streaming is Map && streaming['supported'] == true,
+      streamsDisplayText:
+          streaming is Map && streaming['display_text_deltas'] == true,
+      supportsProvenance: decoded['provenance'] == true,
+      isLegacy: false,
+    );
+  }
+
+  static const legacy = SyniRuntimeCapabilities(
+    apiVersions: ['1.0'],
+    backend: 'unknown',
+    accelerator: 'unknown',
+    supportsSystemRole: false,
+    generationControls: {},
+    supportsStructuredDecoding: true,
+    supportsStreaming: true,
+    streamsDisplayText: false,
+    supportsProvenance: false,
+    isLegacy: true,
+  );
 }
 
 /// Best-effort `String` extraction: returns null for a non-string value rather
@@ -83,6 +249,10 @@ class SyniRuntimeResponse {
   SyniRuntimeResponse._(
     this.rawJson,
     this.data, {
+    this.apiVersion,
+    this.requestId,
+    this.finishReason,
+    this.provenance,
     this.isFallback = false,
     this.fallbackReason,
     this.underlyingErrorCode,
@@ -96,6 +266,11 @@ class SyniRuntimeResponse {
   /// Parsed top-level map. Field set depends on the persona's response
   /// schema (`chat_response`, `coach_response`, `suggestions`, …).
   final dynamic data;
+
+  final String? apiVersion;
+  final String? requestId;
+  final String? finishReason;
+  final SyniRuntimeProvenance? provenance;
 
   /// True when the runtime substituted a deterministic fallback for unusable
   /// model output. Defaults to false — including for an older runtime that
@@ -165,9 +340,19 @@ class SyniRuntimeResponse {
       retryable = meta['retryable'] == true;
     }
 
+    SyniRuntimeProvenance? provenance;
+    final provenanceMap = decoded['provenance'];
+    if (provenanceMap is Map) {
+      provenance = SyniRuntimeProvenance.fromMap(provenanceMap);
+    }
+
     return SyniRuntimeResponse._(
       json,
       decoded,
+      apiVersion: _asString(decoded['api_version']),
+      requestId: _asString(decoded['request_id']),
+      finishReason: _asString(decoded['finish_reason']),
+      provenance: provenance,
       isFallback: isFallback,
       fallbackReason: fallbackReason,
       underlyingErrorCode: underlyingErrorCode,
@@ -221,7 +406,16 @@ class SyniRuntime {
     return _worker!.version();
   }
 
-  /// Drain the runtime's telemetry ring buffer: recent on-device inference
+  /// Native feature negotiation. Older runtime artifacts do not export the
+  /// capability symbol and are represented honestly as [SyniRuntimeCapabilities.legacy].
+  Future<SyniRuntimeCapabilities> capabilities() async {
+    await initialize();
+    final raw = await _worker!.capabilitiesJson();
+    if (raw == null || raw.isEmpty) return SyniRuntimeCapabilities.legacy;
+    return SyniRuntimeCapabilities.fromJson(raw);
+  }
+
+  /// Snapshot the runtime's telemetry ring buffer: recent on-device inference
   /// metrics, including per-fallback root-cause [SyniFallbackDiagnostics].
   ///
   /// Returns an empty list when the engine isn't loaded or nothing has been

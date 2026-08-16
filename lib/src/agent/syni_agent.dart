@@ -10,6 +10,7 @@ import 'syni_install_state.dart';
 import 'syni_installer.dart';
 import 'syni_model_spec.dart';
 import 'syni_persona.dart';
+import 'syni_turn.dart';
 
 /// Where a chat call should run.
 ///
@@ -62,10 +63,16 @@ class SyniAgent {
   bool get isInstalled => _state.value is SyniInstalled;
 
   /// Recent on-device inference metrics, including per-fallback root-cause
-  /// diagnostics ([SyniFallbackDiagnostics]). Drained from the runtime's
+  /// diagnostics ([SyniFallbackDiagnostics]). Read from the runtime's
   /// telemetry ring buffer. Empty when the engine isn't loaded or nothing has
   /// run yet. Cloud turns are not recorded here — this is the on-device engine.
   Future<List<rt.SyniInferenceMetric>> telemetry() => _runtime.telemetry();
+
+  /// Features exposed by the loaded native runtime artifact. A legacy runtime
+  /// reports a conservative API 1.0 capability set instead of crashing on a
+  /// missing FFI symbol.
+  Future<rt.SyniRuntimeCapabilities> runtimeCapabilities() =>
+      _runtime.capabilities();
 
   // -------------------------------------------------------------------------
   // Install / uninstall
@@ -209,6 +216,61 @@ class SyniAgent {
     Future<SyniChatResponse> cloud() =>
         _cloudChat(persona, message, hsiContext);
     return _route(mode, local, cloud);
+  }
+
+  /// Run an authority-aware Runtime API 2.0 turn on device.
+  ///
+  /// Cloud V2 routing is intentionally not emulated by flattening policy,
+  /// history, and task fields into one string. Until the cloud endpoint accepts
+  /// the same contract this method is local-only; existing [chat] remains the
+  /// compatible hybrid/cloud API.
+  Future<SyniTurnResult> turn(
+    SyniTurnRequest request, {
+    SyniExecutionMode mode = SyniExecutionMode.localOnly,
+  }) async {
+    if (mode != SyniExecutionMode.localOnly) {
+      throw UnsupportedError(
+        'SyniAgent.turn currently supports localOnly. Use chat() for the '
+        'legacy cloud contract until cloud Runtime API 2.0 is available.',
+      );
+    }
+    final persona = _requirePersona(mode: mode);
+    final capabilities = await _runtime.capabilities();
+    if (!capabilities.apiVersions.contains('2.0')) {
+      throw UnsupportedError(
+        'The installed Syni runtime does not support API 2.0.',
+      );
+    }
+
+    final runtimeRequest = request.toRuntimeRequest(persona);
+    final installed = currentState as SyniInstalled;
+    final raw = await _runtime.run(
+      runtimeRequest,
+      preset: _presetForSchema(
+        request.task.responseSchemaId ?? persona.responseSchemaId,
+      ),
+      seed: request.generation.seed ?? 0,
+    );
+    final provenance = raw.provenance;
+    return SyniTurnResult(
+      requestId: raw.requestId ?? request.requestId,
+      backend: SyniTurnBackend.local,
+      apiVersion: raw.apiVersion,
+      finishReason: raw.finishReason,
+      provenance: provenance == null
+          ? null
+          : SyniTurnProvenance(
+              backend: provenance.backend,
+              accelerator: provenance.accelerator,
+              runtimeVersion: provenance.runtimeVersion,
+              modelId: provenance.modelId,
+            ),
+      response: SyniChatResponse.fromRuntimeJson(
+        raw.rawJson,
+        personaId: persona.id,
+        runtimeVersion: provenance?.runtimeVersion ?? installed.runtimeVersion,
+      ),
+    );
   }
 
   /// Streaming counterpart to [chat]. Emits [SyniChatDelta]s as tokens
