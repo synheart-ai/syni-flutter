@@ -39,6 +39,7 @@ typedef _SyniEngineRunJsonC = Pointer<Utf8> Function(
   Pointer<Utf8>,
 );
 typedef _SyniVersionC = Pointer<Utf8> Function();
+typedef _SyniCapabilitiesJsonC = Pointer<Utf8> Function();
 typedef _SyniTelemetryJsonC = Pointer<Utf8> Function(Pointer<Void>);
 
 // Streaming: callback returns false to stop early, true to continue.
@@ -66,6 +67,7 @@ typedef _SyniEngineRunJsonDart = Pointer<Utf8> Function(
   Pointer<Utf8>,
 );
 typedef _SyniVersionDart = Pointer<Utf8> Function();
+typedef _SyniCapabilitiesJsonDart = Pointer<Utf8> Function();
 typedef _SyniTelemetryJsonDart = Pointer<Utf8> Function(Pointer<Void>);
 
 typedef _SyniEngineRunStreamJsonDart = Pointer<Utf8> Function(
@@ -103,6 +105,7 @@ class SyniRuntimeFFI {
   static _SyniEngineRunJsonDart? _engineRunJson;
   static _SyniEngineRunStreamJsonDart? _engineRunStreamJson;
   static _SyniVersionDart? _version;
+  static _SyniCapabilitiesJsonDart? _capabilitiesJson;
   static _SyniTelemetryJsonDart? _telemetryJson;
 
   /// Force-load the native library and resolve function pointers.
@@ -134,6 +137,14 @@ class SyniRuntimeFFI {
         _SyniEngineRunStreamJsonDart>('syni_engine_run_stream_json');
     _version =
         lib.lookupFunction<_SyniVersionC, _SyniVersionDart>('syni_version');
+    try {
+      _capabilitiesJson =
+          lib.lookupFunction<_SyniCapabilitiesJsonC, _SyniCapabilitiesJsonDart>(
+              'syni_runtime_capabilities_json');
+    } on ArgumentError {
+      // Runtime < V2. The high-level API reports a legacy capability set.
+      _capabilitiesJson = null;
+    }
     _telemetryJson =
         lib.lookupFunction<_SyniTelemetryJsonC, _SyniTelemetryJsonDart>(
             'syni_telemetry_json');
@@ -258,6 +269,19 @@ class SyniRuntimeFFI {
   static String? version() {
     initialize();
     final ptr = _version!();
+    if (ptr == nullptr) return null;
+    final s = ptr.cast<Utf8>().toDartString();
+    _stringFree!(ptr);
+    return s;
+  }
+
+  /// Versioned native capability contract, or null for a legacy runtime that
+  /// predates `syni_runtime_capabilities_json`.
+  static String? capabilitiesJson() {
+    initialize();
+    final fn = _capabilitiesJson;
+    if (fn == null) return null;
+    final ptr = fn();
     if (ptr == nullptr) return null;
     final s = ptr.cast<Utf8>().toDartString();
     _stringFree!(ptr);

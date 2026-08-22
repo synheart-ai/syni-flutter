@@ -2,6 +2,48 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:syni/runtime.dart';
 
 void main() {
+  group('Runtime API 2.0 contract metadata', () {
+    test('capabilities are parsed into typed feature flags', () {
+      final capabilities = SyniRuntimeCapabilities.fromJson(
+        '{"api_versions":["1.0","2.0"],"backend":"llama.cpp",'
+        '"accelerator":"metal","roles":{"system":true},'
+        '"generation":{"max_tokens":true,"temperature":true},'
+        '"structured_decoding":true,'
+        '"streaming":{"supported":true,"display_text_deltas":false},'
+        '"provenance":true}',
+      );
+
+      expect(capabilities.apiVersions, ['1.0', '2.0']);
+      expect(capabilities.backend, 'llama.cpp');
+      expect(capabilities.accelerator, 'metal');
+      expect(capabilities.supportsSystemRole, isTrue);
+      expect(capabilities.generationControls, {'max_tokens', 'temperature'});
+      expect(capabilities.supportsStructuredDecoding, isTrue);
+      expect(capabilities.supportsStreaming, isTrue);
+      expect(capabilities.streamsDisplayText, isFalse);
+      expect(capabilities.supportsProvenance, isTrue);
+      expect(capabilities.isLegacy, isFalse);
+    });
+
+    test('response identity and provenance are surfaced', () {
+      final response = SyniRuntimeResponse.fromJson(
+        '{"type":"chat","data":{"message":"hello"},'
+        '"api_version":"2.0","request_id":"turn-123",'
+        '"finish_reason":"stop","provenance":{"backend":"llama.cpp",'
+        '"accelerator":"metal","runtime_version":"0.4.4",'
+        '"model_id":"qwen.gguf"}}',
+      );
+
+      expect(response.apiVersion, '2.0');
+      expect(response.requestId, 'turn-123');
+      expect(response.finishReason, 'stop');
+      expect(response.provenance?.backend, 'llama.cpp');
+      expect(response.provenance?.accelerator, 'metal');
+      expect(response.provenance?.runtimeVersion, '0.4.4');
+      expect(response.provenance?.modelId, 'qwen.gguf');
+    });
+  });
+
   group('SyniRuntimeResponse.fromJson — success + fallback meta', () {
     test('genuine answer has no meta → isFallback false', () {
       final r = SyniRuntimeResponse.fromJson(

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-/// Typed view over the runtime's telemetry drain (`syni_telemetry_json`).
+/// Typed view over the runtime's telemetry snapshot (`syni_telemetry_json`).
 ///
 /// Parsing is defensive: unknown / missing / wrong-typed fields degrade to
 /// sensible defaults rather than throwing, so a runtime that adds fields (or an
@@ -16,6 +16,7 @@ class SyniInferenceMetric {
     required this.schemaValid,
     required this.retries,
     required this.fallbackUsed,
+    this.requestId,
     this.errorCode,
     this.fallbackReason,
     this.diagnostics,
@@ -30,6 +31,9 @@ class SyniInferenceMetric {
 
   /// Whether a deterministic fallback was substituted for model output.
   final bool fallbackUsed;
+
+  /// Correlates this metric with a V2 turn response, or null for legacy calls.
+  final String? requestId;
 
   /// Stable code the fallback papered over (`TIMEOUT`, `SCHEMA`, …), or null.
   final String? errorCode;
@@ -50,6 +54,7 @@ class SyniInferenceMetric {
       schemaValid: m['schema_valid'] == true,
       retries: _int(m['retries']),
       fallbackUsed: m['fallback_used'] == true,
+      requestId: _str(m['request_id']),
       errorCode: _str(m['error_code']),
       fallbackReason: _str(m['fallback_reason']),
       diagnostics: diag is Map

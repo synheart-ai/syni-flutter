@@ -77,6 +77,10 @@ class _CmdVersion extends _Cmd {
   _CmdVersion(super.reply);
 }
 
+class _CmdCapabilities extends _Cmd {
+  _CmdCapabilities(super.reply);
+}
+
 class _CmdHealthcheck extends _Cmd {
   _CmdHealthcheck(super.reply);
 }
@@ -196,6 +200,9 @@ class SyniRuntimeWorker {
 
   Future<String?> version() => _send<String?>((reply) => _CmdVersion(reply));
 
+  Future<String?> capabilitiesJson() =>
+      _send<String?>((reply) => _CmdCapabilities(reply));
+
   Future<bool> healthcheck() => _send<bool>((reply) => _CmdHealthcheck(reply));
 
   /// Telemetry snapshot JSON (array of inference metrics), or null when the
@@ -314,6 +321,9 @@ class SyniRuntimeWorker {
 
           case _CmdVersion(:final reply):
             respond(reply, SyniRuntimeFFI.version());
+
+          case _CmdCapabilities(:final reply):
+            respond(reply, SyniRuntimeFFI.capabilitiesJson());
 
           case _CmdHealthcheck(:final reply):
             // syni_engine_healthcheck not yet bound; placeholder.
