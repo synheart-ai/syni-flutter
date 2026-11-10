@@ -129,8 +129,8 @@ class SyniTurnRequest {
       final existing = hsi['conversation_context'];
       hsi['conversation_context'] =
           existing is String && existing.trim().isNotEmpty
-          ? '${existing.trim()}\n$dataBlock'
-          : dataBlock;
+              ? '${existing.trim()}\n$dataBlock'
+              : dataBlock;
     }
 
     return rt.SyniRuntimeRequest(
