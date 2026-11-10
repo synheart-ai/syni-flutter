@@ -260,6 +260,11 @@ class SyniAgent {
   /// has been read, instead of after the whole answer. Local-only, like
   /// [turn]; errors (including a runtime failure envelope) surface as stream
   /// errors.
+  ///
+  /// Cancelling the subscription stops the generation, so a turn the host
+  /// gave up on no longer holds the model. The runtime reports tokens only
+  /// once it is writing: a turn cancelled while still reading its prompt
+  /// stops at its first token.
   Stream<SyniTurnEvent> turnStream(SyniTurnRequest request) async* {
     final persona = _requirePersona(mode: SyniExecutionMode.localOnly);
     final capabilities = await _runtime.capabilities();
