@@ -30,7 +30,7 @@ That writes the platform binaries into the consumer app's vendor tree:
 
 ```
 <app>/synheart/vendor/syni-runtime/android/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libsyni_ffi.so
-<app>/synheart/vendor/syni-runtime/SyniRuntime.xcframework/
+<app>/synheart/vendor/syni-runtime/ios/SyniRuntime.xcframework/
 ```
 
 The plugin's `android/build.gradle` reaches into the consumer app

@@ -1,5 +1,15 @@
 ## Unreleased
 
+### Changed
+
+- iOS: the podspec links `SyniRuntime.xcframework` from
+  `synheart/vendor/syni-runtime/ios/`, where syni-runtime 0.6.0 and later
+  install it, beside `android/jniLibs/`. The old location at the package root
+  (`synheart/vendor/syni-runtime/SyniRuntime.xcframework`, syni-runtime before
+  0.6.0) still works in this release: `pod install` uses it and prints a notice
+  to re-run `synheart install runtime syni`. The next release reads only
+  `ios/`. When both exist, `ios/` is used.
+
 ### Fixed
 
 - Android: the plugin now reads `libsyni_ffi.so` from
