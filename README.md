@@ -94,6 +94,40 @@ agent.chatStream('hello').listen((event) {
 });
 ```
 
+### Structured turns
+
+`turn()` keeps the host's task, the conversation and the user's message
+separate all the way to the runtime, instead of flattening them into one
+prompt. `turnStream()` is its streaming form. Both run on device.
+
+```dart
+final request = SyniTurnRequest(
+  requestId: 'req-1',
+  task: const SyniTaskContract(
+    instruction: 'Answer in two short sentences.',
+  ),
+  userMessage: 'How was my focus today?',
+  context: {'focus_minutes_today': 95},
+);
+
+// Whole answer at once.
+final result = await agent.turn(request);
+debugPrint(result.response.displayText);
+
+// Or word by word.
+final subscription = agent.turnStream(request).listen((event) {
+  switch (event) {
+    case SyniTurnDelta(:final text):
+      stdout.write(text);
+    case SyniTurnFinal(:final result):
+      print('\n[${result.finishReason}]');
+  }
+});
+
+// Cancelling the subscription stops the generation.
+await subscription.cancel();
+```
+
 ### Hybrid local / cloud
 
 ```dart
