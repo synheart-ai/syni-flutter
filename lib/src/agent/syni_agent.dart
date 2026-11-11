@@ -251,6 +251,57 @@ class SyniAgent {
       ),
       seed: request.generation.seed ?? 0,
     );
+    return _turnResult(raw, request, persona, installed);
+  }
+
+  /// Streaming counterpart to [turn]: emits [SyniTurnDelta]s as the model
+  /// writes, then exactly one [SyniTurnFinal] with the same result [turn]
+  /// returns. On a slow device the first words arrive as soon as the prompt
+  /// has been read, instead of after the whole answer. Local-only, like
+  /// [turn]; errors (including a runtime failure envelope) surface as stream
+  /// errors.
+  ///
+  /// Cancelling the subscription stops the generation, so a turn the host
+  /// gave up on no longer holds the model. The runtime reports tokens only
+  /// once it is writing: a turn cancelled while still reading its prompt
+  /// stops at its first token.
+  Stream<SyniTurnEvent> turnStream(SyniTurnRequest request) async* {
+    final persona = _requirePersona(mode: SyniExecutionMode.localOnly);
+    final capabilities = await _runtime.capabilities();
+    if (!capabilities.apiVersions.contains('2.0')) {
+      throw UnsupportedError(
+        'The installed Syni runtime does not support API 2.0.',
+      );
+    }
+    final installed = currentState as SyniInstalled;
+    await for (final chunk in _runtime.runStream(
+      request.toRuntimeRequest(persona),
+      preset: _presetForSchema(
+        request.task.responseSchemaId ?? persona.responseSchemaId,
+      ),
+      seed: request.generation.seed ?? 0,
+    )) {
+      if (chunk is rt.SyniRuntimeStreamDelta) {
+        yield SyniTurnDelta(chunk.text);
+      } else if (chunk is rt.SyniRuntimeStreamFinal) {
+        yield SyniTurnFinal(
+          _turnResult(
+            rt.SyniRuntimeResponse.fromJson(chunk.rawJson),
+            request,
+            persona,
+            installed,
+          ),
+        );
+      }
+    }
+  }
+
+  SyniTurnResult _turnResult(
+    rt.SyniRuntimeResponse raw,
+    SyniTurnRequest request,
+    SyniPersona persona,
+    SyniInstalled installed,
+  ) {
     final provenance = raw.provenance;
     return SyniTurnResult(
       requestId: raw.requestId ?? request.requestId,

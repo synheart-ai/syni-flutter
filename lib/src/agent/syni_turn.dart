@@ -200,3 +200,21 @@ class SyniTurnResult {
   final String? finishReason;
   final SyniTurnProvenance? provenance;
 }
+
+/// An event from [SyniAgent.turnStream].
+sealed class SyniTurnEvent {
+  const SyniTurnEvent();
+}
+
+/// Text the model has just written. The runtime's own chunking: a token or a
+/// few; concatenate them in order.
+final class SyniTurnDelta extends SyniTurnEvent {
+  const SyniTurnDelta(this.text);
+  final String text;
+}
+
+/// The finished turn, exactly once, last.
+final class SyniTurnFinal extends SyniTurnEvent {
+  const SyniTurnFinal(this.result);
+  final SyniTurnResult result;
+}
