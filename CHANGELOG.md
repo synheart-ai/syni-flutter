@@ -1,3 +1,19 @@
+## Unreleased
+
+### Fixed
+
+- Android: the plugin now reads `libsyni_ffi.so` from
+  `synheart/vendor/syni-runtime/android/jniLibs`, where `synheart install syni`
+  puts it and where the iOS podspec already looks. It used to read
+  `synheart/vendor/syni/android/jniLibs`, so apps set up with the CLI failed to
+  load the runtime unless they added the directory to their own `sourceSets`.
+  An app module that adds this directory itself can drop that line; keeping it
+  is harmless. An app module that adds a different directory (such as the old
+  `synheart/vendor/syni/android/jniLibs`) takes precedence over the plugin, so
+  point it at `syni-runtime` or remove it. The `syni.runtime.android.jniLibs`
+  property still overrides the path. When the directory is missing, the build
+  logs a warning naming it.
+
 ## 0.3.7
 
 ### Added

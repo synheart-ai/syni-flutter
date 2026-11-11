@@ -29,12 +29,12 @@ synheart install runtime syni
 That writes the platform binaries into the consumer app's vendor tree:
 
 ```
-<app>/synheart/vendor/syni/android/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libsyni_ffi.so
+<app>/synheart/vendor/syni-runtime/android/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libsyni_ffi.so
 <app>/synheart/vendor/syni-runtime/SyniRuntime.xcframework/
 ```
 
 The plugin's `android/build.gradle` reaches into the consumer app
-(`rootProject.projectDir.parentFile/synheart/vendor/syni/...`) and
+(`rootProject.projectDir.parentFile/synheart/vendor/syni-runtime/...`) and
 `ios/syni.podspec` walks up from `POD_DIR` (or honors `SYNHEART_APP_ROOT`)
 to find them.
 
