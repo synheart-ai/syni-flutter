@@ -7,6 +7,9 @@ analyzer:
   # Its own pubspec context handles its analysis when opened standalone.
   exclude:
     - example_mobile/**
+    - build/**
+    - android/**
+    - ios/**
 
 linter:
   rules:
