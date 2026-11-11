@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'dart:isolate';
+
+import 'package:ffi/ffi.dart';
 
 import 'ffi_bindings.dart';
 
@@ -66,11 +69,17 @@ class _CmdRunStream extends _Cmd {
     this.preset,
     this.seed,
     this.requestJson,
+    this.cancelFlagAddress,
   );
   final SendPort streamPort;
   final int preset;
   final int seed;
   final String requestJson;
+
+  /// Address of a native Int32 the main isolate sets to 1 to stop the run.
+  /// Read from the stream callback, which runs on the worker's thread while
+  /// it is blocked in the FFI call (it can't receive messages then).
+  final int cancelFlagAddress;
 }
 
 class _CmdVersion extends _Cmd {
@@ -153,12 +162,20 @@ class SyniRuntimeWorker {
   ///
   /// Errors during generation are forwarded as stream errors. The stream
   /// closes once the worker reports completion (success or failure).
+  ///
+  /// Cancelling the subscription stops the generation: the next token the
+  /// runtime reports is refused and it returns. The runtime reports tokens
+  /// only once it is writing, so a run still reading its prompt stops when
+  /// its first token arrives.
   Stream<SyniRuntimeStreamChunk> runStream(
     int preset,
     int seed,
     String requestJson,
   ) {
-    final controller = StreamController<SyniRuntimeStreamChunk>();
+    final cancelFlag = calloc<Int32>();
+    final controller = StreamController<SyniRuntimeStreamChunk>(
+      onCancel: () => cancelFlag.value = 1,
+    );
     final streamRx = ReceivePort();
     final replyRx = ReceivePort();
 
@@ -170,6 +187,8 @@ class SyniRuntimeWorker {
       await streamSub.cancel();
       streamRx.close();
       replyRx.close();
+      // The worker is done with the flag once it has replied.
+      calloc.free(cancelFlag);
       if (result is Exception) {
         controller.addError(result);
       } else if (result is String) {
@@ -184,6 +203,7 @@ class SyniRuntimeWorker {
       controller.addError(StateError('SyniRuntimeWorker is disposed'));
       streamRx.close();
       replyRx.close();
+      calloc.free(cancelFlag);
       controller.close();
     } else {
       _workerPort.send(_CmdRunStream(
@@ -192,6 +212,7 @@ class SyniRuntimeWorker {
         preset,
         seed,
         requestJson,
+        cancelFlag.address,
       ));
     }
 
@@ -290,7 +311,8 @@ class SyniRuntimeWorker {
               :final streamPort,
               :final preset,
               :final seed,
-              :final requestJson
+              :final requestJson,
+              :final cancelFlagAddress
             ):
             if (engine == null) {
               respond(
@@ -307,10 +329,14 @@ class SyniRuntimeWorker {
               seed,
               requestJson,
               (chunk) {
+                // Cancelled: refuse the token so the runtime stops writing.
+                if (Pointer<Int32>.fromAddress(cancelFlagAddress).value != 0) {
+                  return false;
+                }
                 try {
                   streamPort.send(chunk);
                 } catch (_) {/* receiver gone */}
-                return true; // V1: never cancel
+                return true;
               },
             );
             if (out == null) {
