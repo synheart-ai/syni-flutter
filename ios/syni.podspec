@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'syni'
-  s.version          = '0.3.6'
+  s.version          = '0.3.7'
   s.summary          = 'Dart FFI bindings for the Synheart on-device agent runtime'
   s.description      = <<-DESC
 Flutter plugin that provides Dart FFI access to libsyni_ffi (the native

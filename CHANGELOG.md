@@ -1,3 +1,21 @@
+## 0.3.7
+
+### Added
+
+- `SyniAgent.turnStream()`, the streaming form of `turn()`: emits
+  `SyniTurnDelta` text as the model writes, then exactly one `SyniTurnFinal`
+  with the same `SyniTurnResult` that `turn()` returns. On slow devices the
+  first words arrive as soon as the prompt has been read.
+- Cancelling the subscription of an on-device `chatStream()` or
+  `turnStream()` stops the generation, so a turn the host gave up on no
+  longer holds the model. The runtime reports tokens only once it is
+  writing, so a turn cancelled while still reading its prompt stops at its
+  first token.
+
+### Changed
+
+- Bump `crypto` from 3.0.7 to 3.0.8.
+
 ## 0.3.6
 
 ### Added
