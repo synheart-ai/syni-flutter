@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'syni'
-  s.version          = '0.3.7'
+  s.version          = '0.3.8'
   s.summary          = 'Dart FFI bindings for the Synheart on-device agent runtime'
   s.description      = <<-DESC
 Flutter plugin that provides Dart FFI access to libsyni_ffi (the native
@@ -20,7 +20,7 @@ no-op shell — all functionality lives in Dart.
   # syni-runtime is shipped via the `synheart` CLI.
   # `synheart install runtime syni` writes the right variant + version
   # to `<app>/synheart/vendor/syni-runtime/ios/SyniRuntime.xcframework`,
-  # beside `android/jniLibs/` (the layout synheart-core-runtime uses).
+  # beside `android/jniLibs/`, the same layout as the Synheart core runtime.
   # Symlinked from the CLI install dir into the pod install dir at
   # `pod install` time.
   #
