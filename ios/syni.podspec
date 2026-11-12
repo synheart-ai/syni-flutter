@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'syni'
-  s.version          = '0.3.7'
+  s.version          = '0.3.8'
   s.summary          = 'Dart FFI bindings for the Synheart on-device agent runtime'
   s.description      = <<-DESC
 Flutter plugin that provides Dart FFI access to libsyni_ffi (the native
@@ -19,35 +19,45 @@ no-op shell — all functionality lives in Dart.
   #
   # syni-runtime is shipped via the `synheart` CLI.
   # `synheart install runtime syni` writes the right variant + version
-  # to `<app>/synheart/vendor/syni-runtime/SyniRuntime.xcframework`.
+  # to `<app>/synheart/vendor/syni-runtime/ios/SyniRuntime.xcframework`,
+  # beside `android/jniLibs/`, the same layout as the Synheart core runtime.
   # Symlinked from the CLI install dir into the pod install dir at
   # `pod install` time.
+  #
+  # Transition: syni-runtime before 0.6.0 put the xcframework at the
+  # package root (`syni-runtime/SyniRuntime.xcframework`). That location
+  # is still accepted, with a notice, by this release only.
   s.prepare_command = <<-CMD
     set -e
+    NEW_REL="synheart/vendor/syni-runtime/ios/SyniRuntime.xcframework"
+    OLD_REL="synheart/vendor/syni-runtime/SyniRuntime.xcframework"
     APP_ROOT="${SYNHEART_APP_ROOT:-}"
     if [ -z "$APP_ROOT" ]; then
       cursor="$(pwd)"
       for _ in 1 2 3 4 5 6 7 8 9 10; do
         cursor="$(cd "$cursor/.." && pwd)"
-        # syni-runtime CLI install layout has the xcframework at the
-        # vendor package root (not nested under ios/) — different from
-        # the legacy `runtime` alias.
-        if [ -d "$cursor/synheart/vendor/syni-runtime/SyniRuntime.xcframework" ]; then
+        if [ -d "$cursor/$NEW_REL" ] || [ -d "$cursor/$OLD_REL" ]; then
           APP_ROOT="$cursor"
           break
         fi
       done
     fi
     if [ -z "$APP_ROOT" ]; then
-      echo "syni: could not locate <app>/synheart/vendor/syni-runtime/SyniRuntime.xcframework"
+      echo "syni: could not locate <app>/$NEW_REL"
       echo "  Set SYNHEART_APP_ROOT in your Podfile:"
       echo "    ENV['SYNHEART_APP_ROOT'] = File.expand_path('..', __dir__)"
       echo "  And run: synheart install runtime syni"
       exit 1
     fi
-    SRC="$APP_ROOT/synheart/vendor/syni-runtime/SyniRuntime.xcframework"
-    if [ ! -d "$SRC" ]; then
-      echo "syni: framework not found at $SRC"
+    if [ -d "$APP_ROOT/$NEW_REL" ]; then
+      SRC="$APP_ROOT/$NEW_REL"
+    elif [ -d "$APP_ROOT/$OLD_REL" ]; then
+      SRC="$APP_ROOT/$OLD_REL"
+      echo "syni: using the Syni runtime at $OLD_REL, the layout from"
+      echo "  before syni-runtime 0.6.0. The next syni release reads only"
+      echo "  $NEW_REL. Run: synheart install runtime syni"
+    else
+      echo "syni: framework not found at $APP_ROOT/$NEW_REL"
       echo "  Run: synheart install runtime syni"
       exit 1
     fi

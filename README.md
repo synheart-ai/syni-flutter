@@ -42,7 +42,7 @@ synheart install runtime syni
 ```
 
 This drops the platform binaries into your app's vendor tree
-(`synheart/vendor/syni/`) so Gradle / Cocoapods can link them. Re-run
+(`synheart/vendor/syni-runtime/`) so Gradle / Cocoapods can link them. Re-run
 the command anytime you want to refresh — it's idempotent.
 
 Then import the agent layer:
