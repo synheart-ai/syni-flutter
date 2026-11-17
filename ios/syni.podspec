@@ -24,9 +24,9 @@ no-op shell — all functionality lives in Dart.
   # Symlinked from the CLI install dir into the pod install dir at
   # `pod install` time.
   #
-  # Transition: syni-runtime before 0.6.0 put the xcframework at the
-  # package root (`syni-runtime/SyniRuntime.xcframework`). That location
-  # is still accepted, with a notice, by this release only.
+  # syni-runtime before 0.6.0 put the xcframework at the package root
+  # (`syni-runtime/SyniRuntime.xcframework`). syni 0.3.8 was the last release
+  # to read it; when only that copy exists, `pod install` says so and stops.
   s.prepare_command = <<-CMD
     set -e
     NEW_REL="synheart/vendor/syni-runtime/ios/SyniRuntime.xcframework"
@@ -49,18 +49,16 @@ no-op shell — all functionality lives in Dart.
       echo "  And run: synheart install runtime syni"
       exit 1
     fi
-    if [ -d "$APP_ROOT/$NEW_REL" ]; then
-      SRC="$APP_ROOT/$NEW_REL"
-    elif [ -d "$APP_ROOT/$OLD_REL" ]; then
-      SRC="$APP_ROOT/$OLD_REL"
-      echo "syni: using the Syni runtime at $OLD_REL, the layout from"
-      echo "  before syni-runtime 0.6.0. The next syni release reads only"
-      echo "  $NEW_REL. Run: synheart install runtime syni"
-    else
+    if [ ! -d "$APP_ROOT/$NEW_REL" ]; then
       echo "syni: framework not found at $APP_ROOT/$NEW_REL"
+      if [ -d "$APP_ROOT/$OLD_REL" ]; then
+        echo "  Found $OLD_REL, the layout from before syni-runtime 0.6.0,"
+        echo "  which this syni release no longer reads."
+      fi
       echo "  Run: synheart install runtime syni"
       exit 1
     fi
+    SRC="$APP_ROOT/$NEW_REL"
     rm -rf SyniRuntime.xcframework
     ln -s "$SRC" SyniRuntime.xcframework
   CMD
