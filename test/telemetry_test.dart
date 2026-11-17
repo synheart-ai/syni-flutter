@@ -23,6 +23,27 @@ void main() {
       expect(m.first.diagnostics, isNull);
     });
 
+    test('phase stats parse and give per-phase speeds', () {
+      final m = parseTelemetry(
+        '[{"started_at_unix_ms":1,"duration_ms":900,"preset":"chat",'
+        '"success":true,"schema_valid":true,"retries":0,"fallback_used":false,'
+        '"phases":{"prompt_tokens":120,"reused_tokens":20,"prefill_tokens":100,'
+        '"prefill_ms":400,"decoded_tokens":50,"decode_ms":500}}]',
+      );
+      final p = m.single.phases!;
+      expect(p.reusedTokens, 20);
+      expect(p.prefillTokensPerSecond, 250);
+      expect(p.decodeTokensPerSecond, 100);
+    });
+
+    test('older runtime without phases parses to null', () {
+      final m = parseTelemetry(
+        '[{"started_at_unix_ms":1,"duration_ms":12,"preset":"chat",'
+        '"success":true,"schema_valid":true,"retries":0,"fallback_used":false}]',
+      );
+      expect(m.single.phases, isNull);
+    });
+
     test('legacy metric has no request ID', () {
       final m = parseTelemetry(
         '[{"started_at_unix_ms":1,"duration_ms":12,"preset":"chat",'

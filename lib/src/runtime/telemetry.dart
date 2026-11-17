@@ -20,6 +20,7 @@ class SyniInferenceMetric {
     this.errorCode,
     this.fallbackReason,
     this.diagnostics,
+    this.phases,
   });
 
   final int startedAtUnixMs;
@@ -44,8 +45,13 @@ class SyniInferenceMetric {
   /// Root-cause debugging context — present only on a fallback.
   final SyniFallbackDiagnostics? diagnostics;
 
+  /// Prompt reading (prefill) and answer writing (decode), timed apart, or
+  /// null when the runtime does not report them (before syni-runtime 0.7).
+  final SyniPhaseStats? phases;
+
   factory SyniInferenceMetric.fromMap(Map<String, dynamic> m) {
     final diag = m['diagnostics'];
+    final phases = m['phases'];
     return SyniInferenceMetric(
       startedAtUnixMs: _int(m['started_at_unix_ms']),
       durationMs: _int(m['duration_ms']),
@@ -60,8 +66,56 @@ class SyniInferenceMetric {
       diagnostics: diag is Map
           ? SyniFallbackDiagnostics.fromMap(diag.cast<String, dynamic>())
           : null,
+      phases: phases is Map
+          ? SyniPhaseStats.fromMap(phases.cast<String, dynamic>())
+          : null,
     );
   }
+}
+
+/// Per-phase token counts and wall time for one generation.
+class SyniPhaseStats {
+  const SyniPhaseStats({
+    required this.promptTokens,
+    required this.reusedTokens,
+    required this.prefillTokens,
+    required this.prefillMs,
+    required this.decodedTokens,
+    required this.decodeMs,
+  });
+
+  /// Prompt length in tokens.
+  final int promptTokens;
+
+  /// Leading prompt tokens reused from the KV cache, so not read again.
+  final int reusedTokens;
+
+  /// Prompt tokens actually read.
+  final int prefillTokens;
+  final int prefillMs;
+
+  /// Tokens written.
+  final int decodedTokens;
+  final int decodeMs;
+
+  /// Prompt-reading speed, or null when nothing was read.
+  double? get prefillTokensPerSecond => prefillMs > 0 && prefillTokens > 0
+      ? prefillTokens * 1000 / prefillMs
+      : null;
+
+  /// Writing speed, or null when nothing was written.
+  double? get decodeTokensPerSecond => decodeMs > 0 && decodedTokens > 0
+      ? decodedTokens * 1000 / decodeMs
+      : null;
+
+  factory SyniPhaseStats.fromMap(Map<String, dynamic> m) => SyniPhaseStats(
+        promptTokens: _int(m['prompt_tokens']),
+        reusedTokens: _int(m['reused_tokens']),
+        prefillTokens: _int(m['prefill_tokens']),
+        prefillMs: _int(m['prefill_ms']),
+        decodedTokens: _int(m['decoded_tokens']),
+        decodeMs: _int(m['decode_ms']),
+      );
 }
 
 /// Root-cause context for a fallback. `prompt` / `rawOutput` are populated only
