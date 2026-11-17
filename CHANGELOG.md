@@ -1,3 +1,16 @@
+## Unreleased
+
+### Added
+
+- `SyniRuntime` keeps the prefilled prompt prefix on disk, in the app's cache
+  directory (`syni_kv/`), so the first turn after a cold start skips reading
+  it again. On a Galaxy A12 that took a 268-token prefix from 40 s to 0.27 s
+  to first token. On by default; `SyniRuntime(sessionCache: false)` turns it
+  off. Runtimes without the feature are left alone.
+- `SyniInferenceMetric.phases` (`SyniPhaseStats`): prefill and decode token
+  counts and times, with `prefillTokensPerSecond` and
+  `decodeTokensPerSecond`. Null with runtimes that do not report them.
+
 ## 0.3.8
 
 ### Changed

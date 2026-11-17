@@ -384,6 +384,13 @@ class SyniRuntimeResponse {
 /// final r = await runtime.run(req);
 /// ```
 class SyniRuntime {
+  /// [sessionCache]: keep the prefilled prompt prefix on disk, in the app's
+  /// cache directory (`syni_kv/`), so the first turn after a cold start does
+  /// not re-read it. On a slow phone that prefix is most of the time to first
+  /// token. Files are a few MB to ~60 MB, and the OS may evict them.
+  SyniRuntime({this.sessionCache = true});
+
+  final bool sessionCache;
   SyniRuntimeWorker? _worker;
   String? _modelPath;
 
@@ -433,9 +440,22 @@ class SyniRuntime {
     if (!File(modelPath).existsSync()) {
       throw SyniRuntimeError('Model file not found: $modelPath');
     }
+    await _configureSessionCache();
     await _worker!.loadModel(modelPath);
     _modelPath = modelPath;
     return true;
+  }
+
+  Future<void> _configureSessionCache() async {
+    if (!sessionCache) return;
+    try {
+      final dir =
+          Directory('${(await getApplicationCacheDirectory()).path}/syni_kv');
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      SyniRuntimeFFI.setSessionCacheDir(dir.path);
+    } catch (_) {
+      // Best-effort: without a cache directory every cold start prefills.
+    }
   }
 
   /// Download a GGUF model from [url] into the app's documents directory.

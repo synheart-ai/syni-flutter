@@ -41,6 +41,7 @@ typedef _SyniEngineRunJsonC = Pointer<Utf8> Function(
 typedef _SyniVersionC = Pointer<Utf8> Function();
 typedef _SyniCapabilitiesJsonC = Pointer<Utf8> Function();
 typedef _SyniTelemetryJsonC = Pointer<Utf8> Function(Pointer<Void>);
+typedef _SyniSetSessionCacheDirC = Void Function(Pointer<Utf8>);
 
 // Streaming: callback returns false to stop early, true to continue.
 typedef _SyniStreamCallbackC = Bool Function(Pointer<Utf8>, Pointer<Void>);
@@ -69,6 +70,7 @@ typedef _SyniEngineRunJsonDart = Pointer<Utf8> Function(
 typedef _SyniVersionDart = Pointer<Utf8> Function();
 typedef _SyniCapabilitiesJsonDart = Pointer<Utf8> Function();
 typedef _SyniTelemetryJsonDart = Pointer<Utf8> Function(Pointer<Void>);
+typedef _SyniSetSessionCacheDirDart = void Function(Pointer<Utf8>);
 
 typedef _SyniEngineRunStreamJsonDart = Pointer<Utf8> Function(
   Pointer<Void>,
@@ -107,6 +109,7 @@ class SyniRuntimeFFI {
   static _SyniVersionDart? _version;
   static _SyniCapabilitiesJsonDart? _capabilitiesJson;
   static _SyniTelemetryJsonDart? _telemetryJson;
+  static _SyniSetSessionCacheDirDart? _setSessionCacheDir;
 
   /// Force-load the native library and resolve function pointers.
   ///
@@ -148,6 +151,30 @@ class SyniRuntimeFFI {
     _telemetryJson =
         lib.lookupFunction<_SyniTelemetryJsonC, _SyniTelemetryJsonDart>(
             'syni_telemetry_json');
+    try {
+      _setSessionCacheDir = lib.lookupFunction<_SyniSetSessionCacheDirC,
+          _SyniSetSessionCacheDirDart>('syni_set_session_cache_dir');
+    } on ArgumentError {
+      // Runtime without the on-disk KV cache.
+      _setSessionCacheDir = null;
+    }
+  }
+
+  /// Where the runtime keeps its on-disk KV cache (the prefilled prompt prefix,
+  /// restored at the next model load so the first turn after a cold start
+  /// skips re-reading it). Process-wide; read at model load. An empty string
+  /// turns the cache off. Returns false when the runtime lacks the feature.
+  static bool setSessionCacheDir(String dir) {
+    initialize();
+    final f = _setSessionCacheDir;
+    if (f == null) return false;
+    final p = dir.toNativeUtf8();
+    try {
+      f(p);
+    } finally {
+      malloc.free(p);
+    }
+    return true;
   }
 
   // -------------------------------------------------------------------------
