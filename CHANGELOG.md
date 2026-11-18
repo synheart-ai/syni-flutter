@@ -11,6 +11,17 @@
   counts and times, with `prefillTokensPerSecond` and
   `decodeTokensPerSecond`. Null with runtimes that do not report them.
 
+## 0.4.0
+
+### Removed
+
+- iOS: the podspec no longer reads `SyniRuntime.xcframework` from the package
+  root (`synheart/vendor/syni-runtime/SyniRuntime.xcframework`), the layout of
+  syni-runtime before 0.6.0. 0.3.8 still used that copy with a notice. It now
+  reads only `synheart/vendor/syni-runtime/ios/`. When only the old copy
+  exists, `pod install` stops and says to re-run `synheart install runtime
+  syni`.
+
 ## 0.3.8
 
 ### Changed
