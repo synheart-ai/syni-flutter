@@ -27,4 +27,8 @@ export 'src/runtime/syni_runtime.dart'
 // Telemetry types returned by [SyniAgent.telemetry] — on-device inference
 // metrics + per-fallback root-cause diagnostics.
 export 'src/runtime/telemetry.dart'
-    show SyniInferenceMetric, SyniFallbackDiagnostics, SyniAttemptDiagnostic;
+    show
+        SyniInferenceMetric,
+        SyniFallbackDiagnostics,
+        SyniAttemptDiagnostic,
+        SyniPhaseStats;
